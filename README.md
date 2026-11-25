@@ -10,17 +10,24 @@ docker compose up -d --build        # db on :5433, api on http://localhost:8088 
 docker compose --profile tests run --rm --build tests   # test suite against a throwaway database
 ```
 
-Set `VIBER_TOKEN` (compose `api` service) to require `Authorization: Bearer <token>`; empty means open (dev only).
-Send `X-Viber-Actor: <name>` on writes so the audit log names who did it.
+Configuration comes from a `.env` next to `docker-compose.yml` (see `.env.example`); every default works for local
+development with no `.env`. Set `VIBER_TOKEN` to require `Authorization: Bearer <token>`; empty means open (dev
+only). Send `X-Viber-Actor: <name>` on writes so the audit log names who did it. For a real deployment, backups
+and wiring Claude sessions to it, see `DEPLOY.md`.
 
-## What exists (v0.1)
+## What exists
+
+Built in layers; each section below says which version added it: the core records (this section), links and
+versions (v0.2, v0.3), sessions (v0.4) and the dashboard (v0.5).
 
 - Schema: project, component, item (bugs/tasks/...), decision (ADRs, string keys kept as written), change
   (changelog), session, episode, fact, rule, note, audit (append-only), import_run.
 - API under `/v1/projects/{key}/...`: components, items, decisions, changes, memory (facts, rules + accept,
   episodes), `recall`, bulk `import/{items|decisions|changes|episodes|facts|rules}` (idempotent by
   `source` + `source_ref` or by key; `?dry_run=true` writes nothing), generated views (`changelog`, `bugs`).
-- Not built yet: streams/claims/locks, MCP server, hooks, dashboard, pgvector recall.
+- Recall is keyword search only.
+- Not built yet: claims and file locks between concurrent sessions (overlap is only warned about), pgvector
+  recall, a background worker for consolidation, and importing second_brain's markdown (changelog, bugs, ADRs).
 
 ## Connecting a repository: `project-scaffold`
 
@@ -69,18 +76,16 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   claude mcp add --transport http viber http://localhost:8088/mcp
   ```
 
-- **Hooks** (`hooks/viber-hook.ps1`, never blocks a session; exits 0 silently if Viber is down). Needs
-  `VIBER_PROJECT` (and `VIBER_URL`, `VIBER_TOKEN` if set). Add to `~/.claude/settings.json` (or a project's
-  `.claude/settings.json`):
+- **Hooks** (`hooks/viber-hook.ps1`, never blocks a session; exits 0 silently if Viber is down). It reads
+  `VIBER_PROJECT` (required), `VIBER_URL` and `VIBER_TOKEN`. Install them per repository and machine with the
+  installer, which writes that repo's `.claude/settings.local.json` using this machine's paths, merges with what
+  is there, keeps a `.bak`, and is safe to re-run:
 
-  ```json
-  { "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File D:/MyWorx/Projects/Viber/hooks/viber-hook.ps1 -Event SessionStart" }] }],
-    "PostToolUse":  [{ "matcher": "Edit|Write|MultiEdit", "hooks": [{ "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File D:/MyWorx/Projects/Viber/hooks/viber-hook.ps1 -Event PostToolUse" }] }],
-    "Stop":         [{ "hooks": [{ "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File D:/MyWorx/Projects/Viber/hooks/viber-hook.ps1 -Event Stop" }] }],
-    "SessionEnd":   [{ "hooks": [{ "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File D:/MyWorx/Projects/Viber/hooks/viber-hook.ps1 -Event SessionEnd" }] }]
-  } }
+  ```powershell
+  .\hooks\install.ps1 -Repo C:\path\to\repo -Project <project-key> [-ViberUrl http://localhost:8088] [-Token <token>]
   ```
+
+  Set `VIBER_DEBUG=1` to see why a hook failed. Full setup steps are in `DEPLOY.md`.
 
 ## Links and versions (v0.2)
 
