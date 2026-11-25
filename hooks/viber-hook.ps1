@@ -74,7 +74,8 @@ try {
         "SessionEnd" { Invoke-Viber Post "/sessions/$sessionId/end" @{} | Out-Null }
     }
 } catch {
-    # Viber being down or slow must never affect the session.
+    # Viber being down or slow must never affect the session. Set VIBER_DEBUG=1 to see why one failed.
+    if ($env:VIBER_DEBUG) { [Console]::Error.WriteLine("viber-hook $Event failed: $($_.Exception.Message)") }
     exit 0
 }
 
