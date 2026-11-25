@@ -1,7 +1,7 @@
 """Specifications as rows: one requirement, constraint, interface or acceptance criterion each, never a document."""
 from fastapi import HTTPException
 
-from .atoms import SPEC_MAX, split_atoms
+from .atoms import SPEC_MAX, split_lines
 from .db import record_audit
 
 KINDS = {"requirement": "REQ", "constraint": "CON", "interface": "IF", "acceptance": "AC", "nfr": "NFR", "question": "Q"}
@@ -35,7 +35,7 @@ def create(connection, project: dict, statement: str, kind: str = "requirement",
 
 def create_from_text(connection, project: dict, text: str, **fields) -> list[dict]:
     """Turn a pasted block (one requirement per line or sentence) into rows."""
-    return [create(connection, project, atom, **fields) for atom in split_atoms(text, SPEC_MAX)]
+    return [create(connection, project, atom, **fields) for atom in split_lines(text, SPEC_MAX)]
 
 
 def read(connection, project: dict, key: str) -> dict:

@@ -50,13 +50,21 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   (scoped to the component), other active sessions and the files they are editing, open bugs, recent
   decisions and changes. Capped by `budget_tokens` (default 1500); the size is logged per session, see
   `GET .../stats/sessions` (packs, average/max tokens, forks, overlap warnings, handoffs).
-- **File claims (v0.6):** a session claims a file before it edits it, and a second session learns who holds
-  it. `POST .../sessions/{id}/claim {paths, reason, ttl_minutes}` returns `granted` and `blocked` (never an
-  error), `POST .../release`, `GET .../claims`; MCP `viber_claim` and `viber_release`. One live claim per
-  file (decided under a project lock, so two sessions cannot both win). A claim ends when released, when its
-  session ends, or after 30 minutes without an edit of that file. The `PreToolUse` hook claims each edited
-  file as `owner/repo:path`: `VIBER_CLAIMS=warn` (default) tells the session, `enforce` refuses the edit,
-  `off` skips it. Two worktrees of one repo share a claim on purpose, because that is where merge conflicts come from.
+- **Rows, not files (v0.6):** Viber's own data is never a file, so there is nothing to lock: sessions write rows and
+  Postgres settles concurrent writes. Nothing long is stored. A fact is at most 500 characters, a rule 400, an
+  episode 1000, a spec row 400, a decision statement 500; longer text is refused or split into rows
+  (`src/viber/atoms.py`, `POST .../memory/split`). (File claims were built and removed: they only help when
+  the shared thing is a file.)
+  - **Decisions:** a header plus `decision_point` rows. MCP `viber_next_adr` reserves the next number
+    (`ADR-v3.018`, using the project's own prefix, so two sessions never share one), `viber_get_adr` reads one by
+    key or by number (`17`), and `viber_decide` fills a reserved number. REST: `GET .../adr/next`, `GET .../adr/{key|number}`.
+  - **Specs:** one requirement, constraint, interface or acceptance criterion per row (`REQ-001`, `CON-001`, ...)
+    with a status Draft, Agreed, Built, Verified or Dropped. MCP `viber_spec_add`, `viber_spec_get`,
+    `viber_spec_status`; REST `.../specs`, `.../specs/split`.
+  - **Memory:** facts, rules, episodes and a graph as in Second Brain: entities with aliases, dated relations
+    (`sb-fleet` / `depends on` / `sb-contracts`; ended, never deleted) and facts linked to entities. MCP
+    `viber_remember` (with `about`), `viber_link`, `viber_graph`; REST `.../graph/*`. `viber_recall` searches facts,
+    accepted rules, decision statements, specs, items and episodes.
 - **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,

@@ -17,10 +17,7 @@ def split_atoms(text: str, limit: int) -> list[str]:
     """One statement per row: a line (bullet markers dropped) is a row; a longer line is packed by sentence, and
     a sentence longer than the limit is wrapped at a word boundary. Order is kept; empty lines vanish."""
     atoms: list[str] = []
-    for raw in (text or "").splitlines():
-        line = _BULLET.sub("", raw).strip()
-        if not line:
-            continue
+    for line in _statements(text):
         if len(line) <= limit:
             atoms.append(line)
             continue
@@ -35,6 +32,37 @@ def split_atoms(text: str, limit: int) -> list[str]:
         if current:
             atoms.append(current)
     return atoms
+
+
+def split_lines(text: str, limit: int) -> list[str]:
+    """One row per line (bullet markers dropped), for lists such as requirements where every line is its own statement."""
+    rows: list[str] = []
+    for raw in (text or "").splitlines():
+        line = _BULLET.sub("", raw).strip()
+        if line:
+            rows.extend(split_atoms(line, limit))
+    return rows
+
+
+def _statements(text: str) -> list[str]:
+    """A bullet starts a statement and a blank line ends one; the lines of a wrapped paragraph are one statement."""
+    blocks: list[str] = []
+    current = ""
+    for raw in (text or "").splitlines():
+        stripped = raw.strip()
+        if not stripped:
+            if current:
+                blocks.append(current)
+            current = ""
+        elif _BULLET.match(raw):
+            if current:
+                blocks.append(current)
+            current = _BULLET.sub("", raw).strip()
+        else:
+            current = f"{current} {stripped}".strip()
+    if current:
+        blocks.append(current)
+    return blocks
 
 
 def _wrap(sentence: str, limit: int) -> list[str]:

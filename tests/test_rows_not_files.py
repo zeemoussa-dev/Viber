@@ -19,6 +19,12 @@ def test_splitter_makes_one_short_row_per_statement():
     assert all(len(a) <= 100 for a in atoms) and len(atoms) > 3
 
 
+def test_a_wrapped_paragraph_stays_one_statement_and_a_bullet_starts_a_new_one():
+    text = "Freeze new scope until the operator\ncan use Personal end to end.\n- Port from v2\n  first, always.\n- Show the work."
+    assert split_atoms(text, 200) == ["Freeze new scope until the operator can use Personal end to end.",
+                                      "Port from v2 first, always.", "Show the work."]
+
+
 def test_next_adr_follows_the_projects_own_numbering_and_never_repeats(client, project_key):
     decide(client, project_key, "ADR-v3.016")
     decide(client, project_key, "ADR-v3.017")
