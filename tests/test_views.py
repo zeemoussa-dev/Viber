@@ -1,6 +1,6 @@
-def call(client, project_key, name, **arguments):
+def call(client, project_key, tool, **arguments):
     body = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-            "params": {"name": name, "arguments": {"project": project_key, **arguments}}}
+            "params": {"name": tool, "arguments": {"project": project_key, **arguments}}}
     return client.post("/mcp", json=body).json()["result"]["content"][0]["text"]
 
 
@@ -29,6 +29,41 @@ def test_views_are_markdown_made_from_the_tables(client, project_key):
     assert "## viber" in specs and "REQ-001 [requirement, Draft] Backups are verified." in specs
     assert "PLAN-a [Draft] Make it solid" in client.get(f"{base}/plans").text
     assert "Write the backup job" in client.get(f"{base}/backlog").text
+
+
+def test_the_pipeline_runs_through_viber_tools_and_the_claude_file_is_generated(client, project_key):
+    base = f"/v1/projects/{project_key}"
+    assert "created" in call(client, project_key, "viber_plan", key="SPRINT-1", title="First sprint", goal="Ship it")
+    story = call(client, project_key, "viber_item", kind="story", title="As a user I can sign in", details="- Given a user.\n- When they sign in.\n- Then they see the home page.", plan="SPRINT-1")
+    assert story.startswith("Created ") and "in plan SPRINT-1" in story
+    story_key = story.split()[1]
+    task = call(client, project_key, "viber_item", kind="task", title="Build the sign-in form", parent=story_key, plan="SPRINT-1", lane="quick")
+    assert f"refines {story_key}" in task
+    task_key = task.split()[1]
+    assert f"{task_key} is In Progress." == call(client, project_key, "viber_item_status", key=task_key, status="In Progress")
+    assert "flagged for a human" in call(client, project_key, "viber_item_status", key=task_key, gate="flagged", gate_reason="needs a decision")
+    assert client.get(f"{base}/items/{task_key}").json()["gate_reason"] == "needs a decision"
+    call(client, project_key, "viber_item_status", key=task_key, status="Done", gate="clear")
+    assert client.get(f"{base}/items/{task_key}").json()["gate_reason"] is None
+    plan = call(client, project_key, "viber_plan", key="SPRINT-1")
+    assert "Progress: 1 of 2 settled" in plan and "Build the sign-in form" in plan
+    assert len(client.get(f"{base}/items/{story_key}").json()["points"]) == 3
+
+    rule = client.post(f"{base}/memory/rules", json={"text": "Never skip the tests."}).json()
+    client.post(f"{base}/memory/rules/{rule['id']}/accept")
+    claude = call(client, project_key, "viber_view", name="claude")
+    assert f"project='{project_key}'" in claude and "viber_spec_add" in claude and "viber_handoff" in claude
+    assert "Never skip the tests." in claude and "Do not create or edit markdown files" in claude
+    assert len(claude.splitlines()) < 60 and claude == client.get(f"{base}/views/claude").text
+    assert "Proposed rules wait" not in claude
+    assert "could not" not in call(client, project_key, "viber_view", name="changelog").lower()
+
+
+def test_the_claude_md_prompt_is_seeded_and_fills_in_the_project(client, project_key):
+    client.post(f"/v1/projects/{project_key}/prompts/seed")
+    text = client.get(f"/v1/projects/{project_key}/prompts/claude-md", params={"component": "sb-fleet"}).text
+    assert f"project '{project_key}'" in text and "viber_view with name='claude'" in text and "viber-cutover" in text
+    assert "about=['sb-fleet']" in text and "Do not delete BACKLOG.md" in text
 
 
 def test_the_older_views_still_answer(client, project_key):

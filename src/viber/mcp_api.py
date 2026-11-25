@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from . import __version__, adr, consolidation, graph, prompts, refs, service, sessions, specs
+from . import __version__, adr, consolidation, graph, prompts, refs, service, sessions, specs, views
 from .atoms import FACT_MAX, RULE_MAX
 from .db import record_audit, transaction
 from .models import ChangeIn, DecisionIn, FactIn, HandoffIn, ItemIn, RuleIn
@@ -85,6 +85,18 @@ TOOLS = [
          {"thing": {"type": "string", "description": "type:key"}, "ended": {"type": "boolean"}}, ["thing"]),
     tool("viber_retire", "Mark something obsolete without deleting it (decision, spec, fact or plan). Its applies_to and about links end.",
          {"thing": {"type": "string", "description": "type:key"}, "reason": {"type": "string"}}, ["thing"]),
+    tool("viber_item", "Create a piece of work: a story, task, chore, spike, idea or bug, with details, optionally in a plan and under a parent item. "
+                       "Use gate 'flagged' with a reason when a human must decide.",
+         {"kind": {"type": "string", "enum": ["story", "task", "chore", "spike", "idea", "bug"]}, "title": {"type": "string"},
+          "details": {"type": "string", "description": "any length; stored one statement per row"}, "component": {"type": "string"},
+          "lane": {"type": "string", "enum": ["quick", "standard", "full"]}, "status": {"type": "string"},
+          "plan": {"type": "string", "description": "plan key to add it to"}, "parent": {"type": "string", "description": "item key it refines"},
+          "gate": {"type": "string", "enum": ["clear", "flagged"]}, "gate_reason": {"type": "string"},
+          "severity": {"type": "string"}, "area": {"type": "string"}}, ["kind", "title"]),
+    tool("viber_item_status", "Move a piece of work along (Open, Ready, In Progress, In Review, Blocked, Done, Closed, Fixed, Won't Fix) or flag or clear it for a human.",
+         {"key": {"type": "string"}, "status": {"type": "string"}, "gate": {"type": "string", "enum": ["clear", "flagged"]}, "gate_reason": {"type": "string"}}, ["key"]),
+    tool("viber_view", "A generated markdown view of the project: status, adr, rules, specs, plans, backlog, claude (the project's CLAUDE.md) or changelog.",
+         {"name": {"type": "string"}}, ["name"]),
     tool("viber_prompt", "Read one of the project's prompts (start, resume, component, bug, decide, plan, consolidate, finish), or list them when no key is given.",
          {"key": {"type": "string"}, "component": {"type": "string"}}, []),
     tool("viber_stale", "List decisions, specs and facts still linked to a component that is deprecated or archived, for review.", {}, []),
@@ -273,6 +285,43 @@ def run_stale(connection, project, arguments):
     return "\n".join(f"{r['type']}:{r['key']} {r['relation']} {r['component']} ({r['lifecycle']})" for r in rows) or "Nothing is tied to a deprecated or archived component."
 
 
+def run_item(connection, project, arguments):
+    kind = arguments["kind"]
+    item, created = service.create_item(connection, project, ItemIn(
+        kind=kind, title=arguments["title"][:400], details=arguments.get("details", ""), lane=arguments.get("lane", "standard"),
+        status=arguments.get("status", "Open"), gate=arguments.get("gate", "clear"), gate_reason=arguments.get("gate_reason"),
+        severity=arguments.get("severity"), area=arguments.get("area"), found_on=date.today(),
+        component_keys=[arguments["component"]] if arguments.get("component") else []), ACTOR)
+    notes = []
+    if arguments.get("plan"):
+        refs.add_to_plan(connection, project, arguments["plan"], [("item", item["key"])], ACTOR)
+        notes.append(f"in plan {arguments['plan']}")
+    if arguments.get("parent"):
+        refs.add(connection, project, "item", item["key"], "refines", "item", arguments["parent"], actor=ACTOR)
+        notes.append(f"refines {arguments['parent']}")
+    return f"Created {item['key']} ({kind})" + (": " + ", ".join(notes) if notes else "") + "."
+
+
+def run_item_status(connection, project, arguments):
+    if not any(arguments.get(f) for f in ("status", "gate")):
+        return "Nothing to change: give a status or a gate."
+    row = connection.execute(
+        "UPDATE item SET status = COALESCE(%s, status), gate = COALESCE(%s, gate), gate_reason = CASE WHEN %s::text = 'clear' THEN NULL ELSE COALESCE(%s, gate_reason) END, "
+        "updated_at = now() WHERE project_id = %s AND key = %s RETURNING key, status, gate",
+        (arguments.get("status"), arguments.get("gate"), arguments.get("gate"), arguments.get("gate_reason"), project["id"], arguments["key"])).fetchone()
+    if not row:
+        raise HTTPException(404, f"item '{arguments['key']}' not found")
+    record_audit(connection, ACTOR, "status", "item", row["key"], project["id"], {"status": row["status"], "gate": row["gate"]})
+    return f"{row['key']} is {row['status']}" + (" and flagged for a human." if row["gate"] == "flagged" else ".")
+
+
+def run_view(connection, project, arguments):
+    name = arguments["name"]
+    if name == "changelog":
+        return service.render_changelog(connection, project)
+    return views.render(connection, project, name)
+
+
 def run_prompt(connection, project, arguments):
     if arguments.get("key"):
         return prompts.render(connection, project, arguments["key"], arguments.get("component"))
@@ -323,7 +372,7 @@ def run_duplicates(connection, project, arguments):
     return "\n".join(f"{r['similarity']} older {r['older']}: {r['older_text'][:80]} | newer {r['newer']}: {r['newer_text'][:80]}" for r in rows) or "No near-duplicate facts."
 
 
-RUNNERS = {"viber_prompt": run_prompt, "viber_episodes_pending": run_episodes_pending, "viber_consolidated": run_consolidated,
+RUNNERS = {"viber_item": run_item, "viber_item_status": run_item_status, "viber_view": run_view, "viber_prompt": run_prompt, "viber_episodes_pending": run_episodes_pending, "viber_consolidated": run_consolidated,
            "viber_component_digest": run_component_digest, "viber_reflection": run_reflection, "viber_consolidate": run_consolidate, "viber_reflect": run_reflect, "viber_duplicates": run_duplicates, "viber_plan": run_plan, "viber_plan_add": run_plan_add, "viber_ref": run_ref, "viber_refs": run_refs,
            "viber_retire": run_retire, "viber_stale": run_stale, "viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
            "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions,
