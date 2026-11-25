@@ -16,6 +16,52 @@ class ComponentIn(BaseModel):
     path: str | None = None
     lifecycle: str = "active"
     meta: dict = {}
+    aliases: list[str] = []  # "python:sbos-contracts" or "npm:@scope/pkg"; bare names mean python
+
+
+class ScanIn(BaseModel):
+    ref: str | None = None
+    commit_sha: str | None = None
+    is_tag: bool = False
+    files: dict[str, str]
+
+
+class LinkIn(BaseModel):
+    from_component: str
+    to_component: str | None = None
+    to_contract: str | None = None
+    type: str = "depends_on"
+    scope: str = "runtime"
+    constraint: str = ""
+    syntax: str = "semver"
+    note: str = ""
+
+
+class ContractIn(BaseModel):
+    key: str
+    kind: str = "api"
+    notes: str = ""
+
+
+class ContractVersionIn(BaseModel):
+    semver: str
+    spec_ref: str | None = None
+
+
+class ProvideIn(BaseModel):
+    contract: str
+    semver: str
+
+
+class ReleaseMemberIn(BaseModel):
+    component: str
+    version: str
+
+
+class ReleaseIn(BaseModel):
+    name: str
+    notes: str = ""
+    members: list[ReleaseMemberIn]
 
 
 class ItemIn(BaseModel):

@@ -1,11 +1,10 @@
-import os
 from contextlib import asynccontextmanager
-from hmac import compare_digest
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
-from . import __version__, service
+from . import __version__, links, map_api, service
+from .security import actor_name, require_token
 from .db import DryRunRollback, close_pool, insert_idempotent, record_audit, run_migrations, transaction
 from .models import (ComponentIn, ChangeIn, DecisionIn, EpisodeIn, FactIn, ImportBatch, ItemIn,
                      ItemUpdate, ProjectIn, RuleIn)
@@ -21,19 +20,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Viber", version=__version__, lifespan=lifespan)
 
 
-def require_token(authorization: str | None = Header(default=None)) -> None:
-    expected_token = os.environ.get("VIBER_TOKEN", "")
-    if not expected_token:
-        return
-    supplied_token = (authorization or "").removeprefix("Bearer ").strip()
-    if not compare_digest(supplied_token, expected_token):
-        raise HTTPException(401, "missing or wrong bearer token")
-
-
-def actor_name(x_viber_actor: str | None = Header(default=None)) -> str:
-    return x_viber_actor or "api"
-
-
+app.include_router(map_api.router)
 protected = [Depends(require_token)]
 
 
@@ -67,10 +54,15 @@ def create_component(project_key: str, payload: ComponentIn, actor: str = Depend
     with transaction() as connection:
         project = service.project_row(connection, project_key)
         component_id, created = insert_idempotent(
-            connection, "component", {"project_id": project["id"], **payload.model_dump()}
+            connection, "component", {"project_id": project["id"], **payload.model_dump(exclude={"aliases"})}
         )
         if not created:
             raise HTTPException(409, f"component '{payload.key}' already exists")
+        conflicts = links.register_aliases(
+            connection, project["id"], component_id,
+            [links.parse_alias_text(text) for text in payload.aliases])
+        if conflicts:
+            raise HTTPException(409, {"error": "alias already owned by another component", "conflicts": conflicts})
         record_audit(connection, actor, "create", "component", component_id, project["id"])
     return {"id": component_id, "key": payload.key}
 
