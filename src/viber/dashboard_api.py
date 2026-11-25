@@ -7,7 +7,7 @@ from .db import record_audit, transaction
 from .security import actor_name, require_token
 
 router = APIRouter(prefix="/v1/projects/{project_key}", dependencies=[Depends(require_token)])
-CLOSED_ITEM_STATUSES = ["Closed", "Done", "Won't Fix"]
+CLOSED_ITEM_STATUSES = ["Closed", "Done", "Fixed", "Won't Fix"]
 
 
 @router.get("/overview")

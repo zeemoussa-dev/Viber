@@ -176,7 +176,7 @@ SELECT 'decision', key, title || ': ' || decision, ts_rank(tsv, q)
 UNION ALL
 SELECT 'item', key, title, ts_rank(tsv, q)
   FROM item, websearch_to_tsquery('english', %(q)s) q
- WHERE project_id = %(p)s AND status NOT IN ('Closed','Done',$$Won't Fix$$) AND tsv @@ q
+ WHERE project_id = %(p)s AND status NOT IN ('Closed','Done','Fixed',$$Won't Fix$$) AND tsv @@ q
 UNION ALL
 SELECT 'episode', id::text, content, ts_rank(tsv, q) * 0.8
   FROM episode, websearch_to_tsquery('english', %(q)s) q

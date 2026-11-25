@@ -6,7 +6,7 @@ from .models import HandoffIn, SessionStartIn
 
 ACTIVE_WINDOW_SQL = "now() - interval '30 minutes'"
 CHARACTERS_PER_TOKEN = 4
-OPEN_BUG_EXCLUDED_STATUSES = ("Closed", "Done", "Won't Fix")
+OPEN_BUG_EXCLUDED_STATUSES = ("Closed", "Done", "Fixed", "Won't Fix")
 DECISION_EXCLUDED_STATUSES = ("Rejected", "Superseded", "Deprecated")
 
 
