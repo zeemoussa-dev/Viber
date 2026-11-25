@@ -50,6 +50,13 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   (scoped to the component), other active sessions and the files they are editing, open bugs, recent
   decisions and changes. Capped by `budget_tokens` (default 1500); the size is logged per session, see
   `GET .../stats/sessions` (packs, average/max tokens, forks, overlap warnings, handoffs).
+- **File claims (v0.6):** a session claims a file before it edits it, and a second session learns who holds
+  it. `POST .../sessions/{id}/claim {paths, reason, ttl_minutes}` returns `granted` and `blocked` (never an
+  error), `POST .../release`, `GET .../claims`; MCP `viber_claim` and `viber_release`. One live claim per
+  file (decided under a project lock, so two sessions cannot both win). A claim ends when released, when its
+  session ends, or after 30 minutes without an edit of that file. The `PreToolUse` hook claims each edited
+  file as `owner/repo:path`: `VIBER_CLAIMS=warn` (default) tells the session, `enforce` refuses the edit,
+  `off` skips it. Two worktrees of one repo share a claim on purpose, because that is where merge conflicts come from.
 - **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,

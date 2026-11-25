@@ -4,13 +4,16 @@
   unreachable it exits 0 silently.
 .DESCRIPTION
   SessionStart  -> registers the session, injects the context pack (rules, handoffs, other sessions, bugs, ...)
+  PreToolUse    -> claims the file before an edit; if another live session holds it, warns the session
+                   (VIBER_CLAIMS=enforce refuses the edit instead; default is warn)
   PostToolUse   -> records edited files; warns when another active session touched the same file
   Stop          -> heartbeat (session idle)
-  SessionEnd    -> marks the session ended
+  SessionEnd    -> marks the session ended (its claims are released with it)
   Configuration (environment): VIBER_URL (default http://localhost:8088), VIBER_PROJECT (required), VIBER_TOKEN
-  Optional: VIBER_PARENT_SESSION (external id of the session this one was forked from)
+  Optional: VIBER_PARENT_SESSION (external id of the session this one was forked from),
+            VIBER_CLAIMS = warn (default) | enforce | off
 #>
-param([Parameter(Mandatory)] [ValidateSet("SessionStart", "PostToolUse", "Stop", "SessionEnd")] [string] $Event)
+param([Parameter(Mandatory)] [ValidateSet("SessionStart", "PreToolUse", "PostToolUse", "Stop", "SessionEnd")] [string] $Event)
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -58,12 +61,37 @@ try {
             $started = Invoke-Viber Post "/sessions/start" $body
             Write-HookContext "SessionStart" $started.context
         }
+        "PreToolUse" {
+            $mode = if ($env:VIBER_CLAIMS) { $env:VIBER_CLAIMS } else { "warn" }
+            $path = $hookInput.tool_input.file_path
+            if ($mode -eq "off" -or -not $path) { exit 0 }
+            # Claim key = repo + path inside it, so README.md in two repos never collides.
+            $root = Get-Git $cwd @("rev-parse", "--show-toplevel")
+            $remote = Get-Git $cwd @("remote", "get-url", "origin")
+            $repoName = if ($remote -match "github\.com[:/]+([^/]+/[^/]+?)(\.git)?$") { $Matches[1] } elseif ($root) { Split-Path $root -Leaf } else { "" }
+            $slash = $path.Replace("\", "/")
+            $inside = if ($root -and $slash.StartsWith($root.Replace("\", "/") + "/", [StringComparison]::OrdinalIgnoreCase)) { $slash.Substring($root.Length + 1) } else { $slash }
+            $key = if ($repoName -and $inside -ne $slash) { "$repoName`:$inside" } else { $slash }
+            $result = Invoke-Viber Post "/sessions/$sessionId/claim" @{ paths = @($key); reason = $hookInput.tool_name; ttl_minutes = 30 }
+            if (@($result.blocked).Count -gt 0) {
+                $b = @($result.blocked)[0]
+                $text = "Viber: $key is claimed by $($b.held_by)$(if ($b.goal) { " ($($b.goal))" }). Wait for them, pick another file, or ask the operator."
+                if ($mode -eq "enforce") {
+                    @{ hookSpecificOutput = @{ hookEventName = "PreToolUse"; permissionDecision = "deny"; permissionDecisionReason = $text } } | ConvertTo-Json -Depth 4 -Compress
+                } else {
+                    Write-HookContext "PreToolUse" ($text + " (warning only: VIBER_CLAIMS=warn)")
+                }
+            }
+        }
         "PostToolUse" {
             $path = $hookInput.tool_input.file_path
             if (-not $path) { exit 0 }
             $root = Get-Git $cwd @("rev-parse", "--show-toplevel")
-            $relative = if ($root -and $path.Replace("\", "/").StartsWith($root.Replace("\", "/") + "/", [StringComparison]::OrdinalIgnoreCase)) {
-                $path.Replace("\", "/").Substring($root.Length + 1) } else { $path }
+            $remote = Get-Git $cwd @("remote", "get-url", "origin")
+            $repoName = if ($remote -match "github\.com[:/]+([^/]+/[^/]+?)(\.git)?$") { $Matches[1] } elseif ($root) { Split-Path $root -Leaf } else { "" }
+            $slash = $path.Replace("\", "/")
+            $inside = if ($root -and $slash.StartsWith($root.Replace("\", "/") + "/", [StringComparison]::OrdinalIgnoreCase)) { $slash.Substring($root.Length + 1) } else { $slash }
+            $relative = if ($repoName -and $inside -ne $slash) { "$repoName`:$inside" } else { $slash }
             $touch = Invoke-Viber Post "/sessions/$sessionId/touch" @{ path = $relative; tool = $hookInput.tool_name }
             if (@($touch.overlaps).Count -gt 0) {
                 $who = (@($touch.overlaps) | ForEach-Object { if ($_.goal) { "$($_.tag) ($($_.goal))" } else { "$($_.tag)" } }) -join ", "

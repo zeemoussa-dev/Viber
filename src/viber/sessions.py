@@ -89,6 +89,10 @@ def touch_file(connection, project: dict, external_id: str, path: str, tool: str
     connection.execute("UPDATE session SET last_seen = now(), state = 'working' WHERE id = %s", (session["id"],))
     connection.execute("INSERT INTO file_touch (project_id, session_id, path, tool) VALUES (%s,%s,%s,%s)",
                        (project["id"], session["id"], path, tool))
+    # An edit of a file this session has claimed keeps the claim alive.
+    connection.execute("UPDATE file_claim SET expires_at = now() + interval '30 minutes' "
+                       "WHERE project_id = %s AND session_id = %s AND path = %s AND released_at IS NULL",
+                       (project["id"], session["id"], path))
     overlaps = connection.execute(
         f"SELECT s.tag, s.goal, max(t.at) AS last_touched FROM file_touch t JOIN session s ON s.id = t.session_id "
         f"WHERE t.project_id = %s AND t.path = %s AND t.session_id <> %s AND s.ended_at IS NULL "
@@ -110,6 +114,7 @@ def end_session(connection, project: dict, external_id: str, summary: str | None
     session = session_by_external_id(connection, project, external_id)
     connection.execute("UPDATE session SET ended_at = now(), state = 'ended', summary = COALESCE(%s, summary) WHERE id = %s",
                        (summary, session["id"]))
+    connection.execute("UPDATE file_claim SET released_at = now() WHERE session_id = %s AND released_at IS NULL", (session["id"],))
     record_audit(connection, actor, "end", "session", str(session["id"]), project["id"])
     return {"tag": session["tag"], "state": "ended"}
 

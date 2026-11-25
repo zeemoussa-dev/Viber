@@ -44,6 +44,16 @@ class TouchIn(BaseModel):
     tool: str | None = None
 
 
+class ClaimIn(BaseModel):
+    paths: list[str] = Field(min_length=1, max_length=200)
+    reason: str | None = None
+    ttl_minutes: int = Field(30, ge=1, le=240)
+
+
+class ReleaseClaimsIn(BaseModel):
+    paths: list[str] | None = None  # none = release everything this session holds
+
+
 class EndIn(BaseModel):
     summary: str | None = None
 

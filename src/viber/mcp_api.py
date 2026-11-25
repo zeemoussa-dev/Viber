@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from . import __version__, service, sessions
+from . import __version__, claims, service, sessions
 from .db import record_audit, transaction
 from .models import ChangeIn, DecisionIn, FactIn, HandoffIn, ItemIn, RuleIn
 from .security import require_token
@@ -51,6 +51,11 @@ TOOLS = [
           "open_questions": {"type": "array", "items": {"type": "string"}}, "next_steps": {"type": "array", "items": {"type": "string"}}},
          ["session_id", "summary"]),
     tool("viber_sessions", "List the active sessions in the project, with their goals and the files they are editing.", {}, []),
+    tool("viber_claim", "Claim files before editing them. Tells you which another live session already holds, so you can wait or ask.",
+         {"session_id": {"type": "string"}, "paths": {"type": "array", "items": {"type": "string"}},
+          "reason": {"type": "string"}, "ttl_minutes": {"type": "integer"}}, ["session_id", "paths"]),
+    tool("viber_release", "Release files you claimed (all of them when paths is empty).",
+         {"session_id": {"type": "string"}, "paths": {"type": "array", "items": {"type": "string"}}}, ["session_id"]),
 ]
 
 
@@ -128,14 +133,33 @@ def run_handoff(connection, project, arguments):
 
 def run_sessions(connection, project, arguments):
     active = sessions.active_sessions(connection, project)
+    held = claims.live_claims(connection, project)
     if not active:
         return "No other active sessions."
-    return "\n".join(f"{s['tag']} ({s['state']}) {s['goal'] or 'no goal'}" + (f" - editing {', '.join(s['files'])}" if s["files"] else "")
-                     for s in active)
+    lines = [f"{s['tag']} ({s['state']}) {s['goal'] or 'no goal'}" + (f" - editing {', '.join(s['files'])}" if s["files"] else "")
+             for s in active]
+    if held:
+        lines.append("Claimed files: " + "; ".join(f"{c['path']} by {c['tag']}" for c in held))
+    return "\n".join(lines)
+
+
+def run_claim(connection, project, arguments):
+    result = claims.claim_files(connection, project, arguments["session_id"], arguments["paths"], arguments.get("reason"),
+                                int(arguments.get("ttl_minutes", claims.DEFAULT_TTL_MINUTES)), ACTOR)
+    text = f"Claimed: {', '.join(result['granted']) or 'nothing'}."
+    for b in result["blocked"]:
+        text += f"\nBLOCKED {b['path']}: held by {b['held_by']}" + (f" ({b['goal']})" if b["goal"] else "") + ". Wait, pick another file, or ask the operator."
+    return text
+
+
+def run_release(connection, project, arguments):
+    result = claims.release_files(connection, project, arguments["session_id"], arguments.get("paths") or None)
+    return f"Released: {', '.join(result['released']) or 'nothing'}."
 
 
 RUNNERS = {"viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
-           "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions}
+           "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions,
+           "viber_claim": run_claim, "viber_release": run_release}
 
 
 def call_tool(name: str, arguments: dict) -> dict:

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 
-from . import service, sessions
+from . import claims, service, sessions
 from .db import transaction
-from .models import EndIn, HandoffIn, SessionStartIn, TouchIn
+from .models import ClaimIn, EndIn, HandoffIn, ReleaseClaimsIn, SessionStartIn, TouchIn
 from .security import actor_name, require_token
 
 router = APIRouter(prefix="/v1/projects/{project_key}", dependencies=[Depends(require_token)])
@@ -20,6 +20,28 @@ def touch_file(project_key: str, external_id: str, payload: TouchIn, actor: str 
     with transaction() as connection:
         project = service.project_row(connection, project_key)
         return sessions.touch_file(connection, project, external_id, payload.path, payload.tool, actor)
+
+
+@router.post("/sessions/{external_id}/claim")
+def claim(project_key: str, external_id: str, payload: ClaimIn, actor: str = Depends(actor_name)):
+    """Claim files. Returns which were granted and which another live session already holds (never an error)."""
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return claims.claim_files(connection, project, external_id, payload.paths, payload.reason, payload.ttl_minutes, actor)
+
+
+@router.post("/sessions/{external_id}/release")
+def release(project_key: str, external_id: str, payload: ReleaseClaimsIn):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return claims.release_files(connection, project, external_id, payload.paths)
+
+
+@router.get("/claims")
+def list_claims(project_key: str):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return claims.live_claims(connection, project)
 
 
 @router.post("/sessions/{external_id}/heartbeat")
