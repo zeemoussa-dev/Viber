@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "viber"
+version = "0.1.0"
+description = "Viber: development methodology service - projects, components, versions, links, work and shared memory"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "psycopg[binary,pool]>=3.2,<4",
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "httpx>=0.27,<1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+viber = ["migrations/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
