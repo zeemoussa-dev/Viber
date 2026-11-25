@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from . import __version__, claims, service, sessions
+from . import __version__, adr, graph, service, sessions, specs
+from .atoms import FACT_MAX, RULE_MAX
 from .db import record_audit, transaction
 from .models import ChangeIn, DecisionIn, FactIn, HandoffIn, ItemIn, RuleIn
 from .security import require_token
@@ -42,20 +43,34 @@ TOOLS = [
     tool("viber_remember", "Store a durable fact (as fact) or propose a rule for the human to accept (as rule).",
          {"text": {"type": "string"}, "as": {"type": "string", "enum": ["fact", "rule"]}, "subject": {"type": "string"},
           "category": {"type": "string", "description": "for rules: decision, pattern or constraint"},
+          "about": {"type": "array", "items": {"type": "string"}, "description": "entity names this fact is about (the memory graph)"},
           "component": {"type": "string"}}, ["text"]),
-    tool("viber_decide", "Record an architectural decision (ADR) as Proposed. Humans accept it.",
-         {"title": {"type": "string"}, "context": {"type": "string"}, "decision": {"type": "string"},
+    tool("viber_decide", "Record an architectural decision (ADR) as Proposed. Humans accept it. Pass the key from viber_next_adr, or none to take the next one.",
+         {"key": {"type": "string"}, "title": {"type": "string"}, "context": {"type": "string"}, "decision": {"type": "string"},
           "alternatives": {"type": "string"}, "consequences": {"type": "string"}}, ["title", "decision"]),
     tool("viber_handoff", "Leave what this session learned for the next session or a fork: summary, decisions, open questions, next steps.",
          {"session_id": {"type": "string"}, "summary": {"type": "string"}, "decisions": {"type": "array", "items": {"type": "string"}},
           "open_questions": {"type": "array", "items": {"type": "string"}}, "next_steps": {"type": "array", "items": {"type": "string"}}},
          ["session_id", "summary"]),
     tool("viber_sessions", "List the active sessions in the project, with their goals and the files they are editing.", {}, []),
-    tool("viber_claim", "Claim files before editing them. Tells you which another live session already holds, so you can wait or ask.",
-         {"session_id": {"type": "string"}, "paths": {"type": "array", "items": {"type": "string"}},
-          "reason": {"type": "string"}, "ttl_minutes": {"type": "integer"}}, ["session_id", "paths"]),
-    tool("viber_release", "Release files you claimed (all of them when paths is empty).",
-         {"session_id": {"type": "string"}, "paths": {"type": "array", "items": {"type": "string"}}}, ["session_id"]),
+    tool("viber_next_adr", "Get the next decision number (for example ADR-v3.018). It is reserved for you, so two sessions never get the same one.",
+         {"prefix": {"type": "string", "description": "optional; defaults to the prefix the project already uses"}}, []),
+    tool("viber_get_adr", "Read one decision by its key (ADR-v3.017) or its number alone (17). Returns its statements, one per line.",
+         {"adr": {"type": "string"}}, ["adr"]),
+    tool("viber_spec_add", "Add specification rows: one requirement, constraint, interface or acceptance criterion per line.",
+         {"text": {"type": "string", "description": "one statement per line; each becomes a row of at most 400 characters"},
+          "kind": {"type": "string", "enum": ["requirement", "constraint", "interface", "acceptance", "nfr", "question"]},
+          "component": {"type": "string"}, "parent": {"type": "string", "description": "key of the spec this refines"}}, ["text"]),
+    tool("viber_spec_get", "Read one spec by key, or list specs by component, kind, status or a search query.",
+         {"key": {"type": "string"}, "component": {"type": "string"}, "kind": {"type": "string"}, "status": {"type": "string"},
+          "query": {"type": "string"}, "limit": {"type": "integer"}}, []),
+    tool("viber_spec_status", "Change a spec's status (Draft, Agreed, Built, Verified, Dropped) or its statement.",
+         {"key": {"type": "string"}, "status": {"type": "string"}, "statement": {"type": "string"}}, ["key"]),
+    tool("viber_link", "Record a relation in the memory graph, for example sb-fleet / depends on / sb-contracts. Entities are created by name.",
+         {"subject": {"type": "string"}, "relation": {"type": "string", "description": "up to 60 characters"}, "object": {"type": "string"},
+          "subject_kind": {"type": "string"}, "object_kind": {"type": "string"}}, ["subject", "relation", "object"]),
+    tool("viber_graph", "Show an entity from the memory graph: its aliases, current relations and the facts about it.",
+         {"entity": {"type": "string"}, "limit": {"type": "integer"}}, ["entity"]),
 ]
 
 
@@ -103,20 +118,24 @@ def run_bug(connection, project, arguments):
 
 def run_remember(connection, project, arguments):
     scope = component_scope(arguments.get("component"))
+    limit = RULE_MAX if arguments.get("as") == "rule" else FACT_MAX
+    if len(arguments["text"]) > limit:
+        return (f"Too long: {len(arguments['text'])} characters, the limit is {limit}. Memory holds one statement per row: "
+                "split it into several short facts and call viber_remember for each.")
     if arguments.get("as") == "rule":
         result, created = service.create_rule(connection, project, RuleIn(
             text=arguments["text"], category=arguments.get("category", "constraint"), scope=scope, proposed_by=ACTOR), ACTOR)
         return "Proposed rule (a human must accept it)." if created else "That rule already exists."
     result, created = service.create_fact(connection, project, FactIn(
         text=arguments["text"], subject=arguments.get("subject"), scope=scope), ACTOR)
+    about = arguments.get("about") or []
+    if created and about and result.get("id"):
+        graph.link_fact(connection, project, result["id"], about)
     return "Remembered." if created else "Already known."
 
 
 def run_decide(connection, project, arguments):
-    row = connection.execute(
-        "INSERT INTO counter (project_id, name, value) VALUES (%s,'ADR',1) "
-        "ON CONFLICT (project_id, name) DO UPDATE SET value = counter.value + 1 RETURNING value", (project["id"],)).fetchone()
-    key = f"ADR-{row['value']:03d}"
+    key = arguments.get("key") or adr.next_key(connection, project, None, ACTOR)
     service.create_decision(connection, project, DecisionIn(
         key=key, title=arguments["title"], status="Proposed", decided_on=date.today(), context=arguments.get("context", ""),
         decision=arguments["decision"], alternatives=arguments.get("alternatives", ""),
@@ -133,33 +152,55 @@ def run_handoff(connection, project, arguments):
 
 def run_sessions(connection, project, arguments):
     active = sessions.active_sessions(connection, project)
-    held = claims.live_claims(connection, project)
     if not active:
         return "No other active sessions."
-    lines = [f"{s['tag']} ({s['state']}) {s['goal'] or 'no goal'}" + (f" - editing {', '.join(s['files'])}" if s["files"] else "")
-             for s in active]
-    if held:
-        lines.append("Claimed files: " + "; ".join(f"{c['path']} by {c['tag']}" for c in held))
-    return "\n".join(lines)
+    return "\n".join(f"{s['tag']} ({s['state']}) {s['goal'] or 'no goal'}" + (f" - editing {', '.join(s['files'])}" if s["files"] else "")
+                     for s in active)
 
 
-def run_claim(connection, project, arguments):
-    result = claims.claim_files(connection, project, arguments["session_id"], arguments["paths"], arguments.get("reason"),
-                                int(arguments.get("ttl_minutes", claims.DEFAULT_TTL_MINUTES)), ACTOR)
-    text = f"Claimed: {', '.join(result['granted']) or 'nothing'}."
-    for b in result["blocked"]:
-        text += f"\nBLOCKED {b['path']}: held by {b['held_by']}" + (f" ({b['goal']})" if b["goal"] else "") + ". Wait, pick another file, or ask the operator."
-    return text
+def run_next_adr(connection, project, arguments):
+    key = adr.next_key(connection, project, arguments.get("prefix"), ACTOR)
+    return f"{key} is reserved for you. Fill it with viber_decide (key={key}); an unused reservation shows as Reserved."
 
 
-def run_release(connection, project, arguments):
-    result = claims.release_files(connection, project, arguments["session_id"], arguments.get("paths") or None)
-    return f"Released: {', '.join(result['released']) or 'nothing'}."
+def run_get_adr(connection, project, arguments):
+    return adr.as_text(adr.read(connection, project, str(arguments["adr"])))
+
+
+def run_spec_add(connection, project, arguments):
+    rows = specs.create_from_text(connection, project, arguments["text"], kind=arguments.get("kind", "requirement"),
+                                  component_key=arguments.get("component"), parent_key=arguments.get("parent"), actor=ACTOR)
+    return "Added: " + ", ".join(r["key"] for r in rows) if rows else "Nothing to add."
+
+
+def run_spec_get(connection, project, arguments):
+    if arguments.get("key"):
+        s = specs.read(connection, project, arguments["key"])
+        return f"{s['key']} [{s['kind']}, {s['status']}] {s['statement']}" + (f" (children: {', '.join(s['children'])})" if s["children"] else "")
+    rows = specs.list_specs(connection, project, arguments.get("component"), arguments.get("kind"), arguments.get("status"),
+                            arguments.get("query"), int(arguments.get("limit", 50)))
+    return "\n".join(f"{r['key']} [{r['kind']}, {r['status']}] {r['statement']}" for r in rows) or "No specs match."
+
+
+def run_spec_status(connection, project, arguments):
+    s = specs.update(connection, project, arguments["key"], arguments.get("statement"), arguments.get("status"), ACTOR)
+    return f"{s['key']} is {s['status']}."
+
+
+def run_link(connection, project, arguments):
+    r = graph.link(connection, project, arguments["subject"], arguments["relation"], arguments["object"],
+                   arguments.get("subject_kind"), arguments.get("object_kind"))
+    return f"{r['subject']} {r['relation']} {r['object']}" + (" (new)." if r["created"] else " (already known).")
+
+
+def run_graph(connection, project, arguments):
+    return graph.graph_text(graph.around(connection, project, arguments["entity"], int(arguments.get("limit", 40))))
 
 
 RUNNERS = {"viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
            "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions,
-           "viber_claim": run_claim, "viber_release": run_release}
+           "viber_next_adr": run_next_adr, "viber_get_adr": run_get_adr, "viber_spec_add": run_spec_add,
+           "viber_spec_get": run_spec_get, "viber_spec_status": run_spec_status, "viber_link": run_link, "viber_graph": run_graph}
 
 
 def call_tool(name: str, arguments: dict) -> dict:

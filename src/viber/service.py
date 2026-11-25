@@ -3,7 +3,8 @@ from datetime import date
 
 from fastapi import HTTPException
 
-from .db import insert_idempotent, record_audit
+from . import adr
+from .db import insert_idempotent, record_audit, to_database_value
 from .models import ChangeIn, DecisionIn, EpisodeIn, FactIn, ItemIn, RuleIn
 
 KEY_PATTERN = re.compile(r"^([A-Za-z]+)-(\d+)$")
@@ -76,9 +77,21 @@ def create_decision(connection, project: dict, payload: DecisionIn, actor: str =
     match = KEY_PATTERN.match(payload.key)
     if match:
         bump_counter_to_at_least(connection, project["id"], match.group(1).upper(), int(match.group(2)))
-    values = {"project_id": project["id"], **payload.model_dump()}
-    decision_id, created = insert_idempotent(connection, "decision", values)
+    # Statements live in decision_point rows (adr.write_points); the long columns stay empty.
+    values = payload.model_dump()
+    sections = {name: values.pop(name) for name in ("context", "decision", "alternatives", "consequences")}
+    reserved = connection.execute("SELECT id FROM decision WHERE project_id = %s AND key = %s AND status = 'Reserved'",
+                                  (project["id"], payload.key)).fetchone()
+    if reserved:
+        decision_id, created = str(reserved["id"]), True
+        connection.execute(
+            "UPDATE decision SET title=%s, status=%s, decided_on=%s, supersedes=%s, superseded_by=%s, data=%s, source=%s, source_ref=%s "
+            "WHERE id=%s", (values["title"], values["status"], values["decided_on"], values["supersedes"], values["superseded_by"],
+                            to_database_value(values["data"]), values["source"], values["source_ref"], reserved["id"]))
+    else:
+        decision_id, created = insert_idempotent(connection, "decision", {"project_id": project["id"], **values})
     if created:
+        adr.write_points(connection, decision_id, sections)
         record_audit(connection, actor, "create", "decision", decision_id, project["id"], {"key": payload.key})
     return {"id": decision_id, "key": payload.key}, created
 
@@ -170,9 +183,17 @@ SELECT 'rule', id::text, text, ts_rank(tsv, q) * 1.5
   FROM rule, websearch_to_tsquery('english', %(q)s) q
  WHERE project_id = %(p)s AND status = 'accepted' AND tsv @@ q
 UNION ALL
-SELECT 'decision', key, title || ': ' || decision, ts_rank(tsv, q)
+SELECT 'decision', d.key, d.title || ': ' || p.text, ts_rank(p.tsv, q)
+  FROM decision_point p JOIN decision d ON d.id = p.decision_id, websearch_to_tsquery('english', %(q)s) q
+ WHERE d.project_id = %(p)s AND d.status NOT IN ('Rejected','Superseded','Reserved') AND p.tsv @@ q
+UNION ALL
+SELECT 'decision', key, title, ts_rank(tsv, q)
   FROM decision, websearch_to_tsquery('english', %(q)s) q
- WHERE project_id = %(p)s AND status NOT IN ('Rejected','Superseded') AND tsv @@ q
+ WHERE project_id = %(p)s AND status NOT IN ('Rejected','Superseded','Reserved') AND tsv @@ q
+UNION ALL
+SELECT 'spec', key, statement, ts_rank(tsv, q)
+  FROM spec, websearch_to_tsquery('english', %(q)s) q
+ WHERE project_id = %(p)s AND status <> 'Dropped' AND tsv @@ q
 UNION ALL
 SELECT 'item', key, title, ts_rank(tsv, q)
   FROM item, websearch_to_tsquery('english', %(q)s) q

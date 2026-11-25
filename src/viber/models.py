@@ -44,16 +44,6 @@ class TouchIn(BaseModel):
     tool: str | None = None
 
 
-class ClaimIn(BaseModel):
-    paths: list[str] = Field(min_length=1, max_length=200)
-    reason: str | None = None
-    ttl_minutes: int = Field(30, ge=1, le=240)
-
-
-class ReleaseClaimsIn(BaseModel):
-    paths: list[str] | None = None  # none = release everything this session holds
-
-
 class EndIn(BaseModel):
     summary: str | None = None
 
@@ -164,7 +154,7 @@ class ChangeIn(BaseModel):
 
 
 class EpisodeIn(BaseModel):
-    content: str
+    content: str = Field(max_length=1000)  # one event; longer text is split into several rows (see atoms.py)
     kind: str = "note"
     scope: str = "project"
     occurred_at: datetime | None = None
@@ -173,7 +163,7 @@ class EpisodeIn(BaseModel):
 
 
 class FactIn(BaseModel):
-    text: str
+    text: str = Field(max_length=500)  # one fact; longer text is split into several rows (see atoms.py)
     subject: str | None = None
     scope: str = "project"
     trust: str = "agent"
@@ -183,7 +173,7 @@ class FactIn(BaseModel):
 
 
 class RuleIn(BaseModel):
-    text: str
+    text: str = Field(max_length=400)  # one rule, one sentence
     category: str = "constraint"
     scope: str = "project"
     status: str = "proposed"

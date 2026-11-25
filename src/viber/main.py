@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, dashboard_api, links, map_api, mcp_api, service, session_api
+from . import __version__, dashboard_api, links, map_api, mcp_api, service, session_api, structure_api
 from .security import actor_name, require_token
 from .db import DryRunRollback, close_pool, insert_idempotent, record_audit, run_migrations, transaction
 from .models import (ComponentIn, ChangeIn, DecisionIn, EpisodeIn, FactIn, ImportBatch, ItemIn,
@@ -28,6 +28,7 @@ app = FastAPI(title="Viber", version=__version__, lifespan=lifespan)
 
 app.include_router(map_api.router)
 app.include_router(session_api.router)
+app.include_router(structure_api.router)
 app.include_router(mcp_api.router)
 app.include_router(dashboard_api.router)
 
