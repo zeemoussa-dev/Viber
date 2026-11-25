@@ -185,11 +185,11 @@ SELECT 'rule', id::text, text, ts_rank(tsv, q) * 1.5
 UNION ALL
 SELECT 'decision', d.key, d.title || ': ' || p.text, ts_rank(p.tsv, q)
   FROM decision_point p JOIN decision d ON d.id = p.decision_id, websearch_to_tsquery('english', %(q)s) q
- WHERE d.project_id = %(p)s AND d.status NOT IN ('Rejected','Superseded','Reserved') AND p.tsv @@ q
+ WHERE d.project_id = %(p)s AND d.status NOT IN ('Rejected','Superseded','Obsolete','Reserved') AND p.tsv @@ q
 UNION ALL
 SELECT 'decision', key, title, ts_rank(tsv, q)
   FROM decision, websearch_to_tsquery('english', %(q)s) q
- WHERE project_id = %(p)s AND status NOT IN ('Rejected','Superseded','Reserved') AND tsv @@ q
+ WHERE project_id = %(p)s AND status NOT IN ('Rejected','Superseded','Obsolete','Reserved') AND tsv @@ q
 UNION ALL
 SELECT 'spec', key, statement, ts_rank(tsv, q)
   FROM spec, websearch_to_tsquery('english', %(q)s) q

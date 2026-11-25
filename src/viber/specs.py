@@ -50,7 +50,7 @@ def read(connection, project: dict, key: str) -> dict:
 
 def list_specs(connection, project: dict, component_key: str | None = None, kind: str | None = None,
                status: str | None = None, query: str | None = None, limit: int = 100) -> list[dict]:
-    sql = ("SELECT key, kind, component_key, parent_key, statement, status FROM spec WHERE project_id = %s "
+    sql = ("SELECT key, kind, component_key, parent_key, statement, status, source_ref FROM spec WHERE project_id = %s "
            "AND (%s::text IS NULL OR component_key = %s) AND (%s::text IS NULL OR kind = %s) AND (%s::text IS NULL OR status = %s) ")
     params: list = [project["id"], component_key, component_key, kind, kind, status, status]
     if query:

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from . import __version__, adr, graph, service, sessions, specs
+from . import __version__, adr, graph, refs, service, sessions, specs
 from .atoms import FACT_MAX, RULE_MAX
 from .db import record_audit, transaction
 from .models import ChangeIn, DecisionIn, FactIn, HandoffIn, ItemIn, RuleIn
@@ -71,6 +71,21 @@ TOOLS = [
           "subject_kind": {"type": "string"}, "object_kind": {"type": "string"}}, ["subject", "relation", "object"]),
     tool("viber_graph", "Show an entity from the memory graph: its aliases, current relations and the facts about it.",
          {"entity": {"type": "string"}, "limit": {"type": "integer"}}, ["entity"]),
+    tool("viber_plan", "Create a plan, or show one. A plan is a row: its content is the specs, bugs, tasks and decisions linked to it.",
+         {"key": {"type": "string", "description": "show this plan; omit with a title to create one"}, "title": {"type": "string"},
+          "goal": {"type": "string", "description": "one line, at most 300 characters"}}, []),
+    tool("viber_plan_add", "Add things to a plan, in order. Each member is type:key, for example spec:REQ-004, item:BUG-012, decision:ADR-v3.017.",
+         {"plan": {"type": "string"}, "members": {"type": "array", "items": {"type": "string"}}}, ["plan", "members"]),
+    tool("viber_ref", "Link two things with a dated relation (contains, applies_to, supersedes, about, found_in, fixed_in, implements, verifies, refines, blocks, depends_on, replaces, mentions). "
+                      "A decision applies_to a component or version (component@semver) with an optional version range. Types: plan, spec, item, decision, component, version, fact, release, entity.",
+         {"from": {"type": "string", "description": "type:key"}, "relation": {"type": "string"}, "to": {"type": "string", "description": "type:key"},
+          "version_range": {"type": "string"}, "note": {"type": "string"}, "end": {"type": "boolean", "description": "end this link instead of adding it"}},
+         ["from", "relation", "to"]),
+    tool("viber_refs", "Show everything linked to one thing, both directions (for example decision:ADR-v3.017 or component:sb-fleet).",
+         {"thing": {"type": "string", "description": "type:key"}, "ended": {"type": "boolean"}}, ["thing"]),
+    tool("viber_retire", "Mark something obsolete without deleting it (decision, spec, fact or plan). Its applies_to and about links end.",
+         {"thing": {"type": "string", "description": "type:key"}, "reason": {"type": "string"}}, ["thing"]),
+    tool("viber_stale", "List decisions, specs and facts still linked to a component that is deprecated or archived, for review.", {}, []),
 ]
 
 
@@ -197,7 +212,55 @@ def run_graph(connection, project, arguments):
     return graph.graph_text(graph.around(connection, project, arguments["entity"], int(arguments.get("limit", 40))))
 
 
-RUNNERS = {"viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
+def _typed(value: str) -> tuple[str, str]:
+    kind, separator, key = (value or "").partition(":")
+    if not separator or not key:
+        raise HTTPException(422, f"'{value}' should be type:key, for example spec:REQ-004")
+    return kind.strip().lower(), key.strip()
+
+
+def run_plan(connection, project, arguments):
+    if arguments.get("key") and not arguments.get("title"):
+        return refs.plan_text(refs.plan_view(connection, project, arguments["key"]))
+    if not arguments.get("title"):
+        plans = refs.list_plans(connection, project)
+        return "\n".join(f"{p['key']} [{p['status']}] {p['title']} ({p['members']} items)" for p in plans) or "No plans yet."
+    result = refs.create_plan(connection, project, arguments.get("key"), arguments["title"], arguments.get("goal", ""), actor=ACTOR)
+    return f"Plan {result['key']} created." if result["created"] else f"Plan {result['key']} already exists."
+
+
+def run_plan_add(connection, project, arguments):
+    result = refs.add_to_plan(connection, project, arguments["plan"], [_typed(m) for m in arguments["members"]], ACTOR)
+    return f"Added to {result['plan']}: {', '.join(result['added'])}."
+
+
+def run_ref(connection, project, arguments):
+    (from_type, from_key), (to_type, to_key) = _typed(arguments["from"]), _typed(arguments["to"])
+    if arguments.get("end"):
+        return f"Ended {refs.end(connection, project, from_type, from_key, arguments['relation'], to_type, to_key, ACTOR)['ended']} link(s)."
+    r = refs.add(connection, project, from_type, from_key, arguments["relation"], to_type, to_key,
+                 arguments.get("version_range"), None, arguments.get("note"), actor=ACTOR)
+    return f"{r['from']} {r['relation']} {r['to']}" + (" (new)." if r["created"] else " (already linked).")
+
+
+def run_refs(connection, project, arguments):
+    kind, key = _typed(arguments["thing"])
+    return refs.show_text(refs.show(connection, project, kind, key, bool(arguments.get("ended"))))
+
+
+def run_retire(connection, project, arguments):
+    kind, key = _typed(arguments["thing"])
+    r = refs.retire(connection, project, kind, key, arguments.get("reason"), ACTOR)
+    return f"{r['retired']} is obsolete; {r['links_ended']} link(s) ended. Nothing was deleted."
+
+
+def run_stale(connection, project, arguments):
+    rows = refs.stale(connection, project)
+    return "\n".join(f"{r['type']}:{r['key']} {r['relation']} {r['component']} ({r['lifecycle']})" for r in rows) or "Nothing is tied to a deprecated or archived component."
+
+
+RUNNERS = {"viber_plan": run_plan, "viber_plan_add": run_plan_add, "viber_ref": run_ref, "viber_refs": run_refs,
+           "viber_retire": run_retire, "viber_stale": run_stale, "viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
            "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions,
            "viber_next_adr": run_next_adr, "viber_get_adr": run_get_adr, "viber_spec_add": run_spec_add,
            "viber_spec_get": run_spec_get, "viber_spec_status": run_spec_status, "viber_link": run_link, "viber_graph": run_graph}

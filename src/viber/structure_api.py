@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from . import adr, graph, service, specs
+from . import adr, graph, refs, service, specs
 from .atoms import EPISODE_MAX, FACT_MAX, RELATION_MAX, RULE_MAX, SPEC_MAX, split_atoms
 from .db import transaction
 from .models import EpisodeIn, FactIn, RuleIn
@@ -81,6 +81,110 @@ def split_memory(project_key: str, payload: MemorySplitIn, actor: str = Depends(
                     text=atom, subject=payload.subject, source=payload.source, source_ref=ref), actor)
                 made["facts"] += int(created)
     return {"statements": len(atoms), **made}
+
+
+class PlanIn(BaseModel):
+    title: str = Field(max_length=200)
+    goal: str = Field("", max_length=300)
+    key: str | None = None
+    status: str = "Draft"
+    source: str | None = None
+    source_ref: str | None = None
+
+
+class PlanMembersIn(BaseModel):
+    members: list[dict]  # [{"type": "spec", "key": "REQ-001"}, ...]
+
+
+class RefIn(BaseModel):
+    from_type: str
+    from_key: str
+    relation: str
+    to_type: str
+    to_key: str
+    version_range: str | None = Field(None, max_length=60)
+    seq: int | None = None
+    note: str | None = Field(None, max_length=200)
+    source: str | None = None
+    source_ref: str | None = None
+
+
+class RetireIn(BaseModel):
+    type: str
+    key: str
+    reason: str | None = Field(None, max_length=200)
+
+
+@router.post("/plans", status_code=201)
+def create_plan(project_key: str, payload: PlanIn, actor: str = Depends(actor_name)):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.create_plan(connection, project, payload.key, payload.title, payload.goal, payload.status,
+                                payload.source, payload.source_ref, actor)
+
+
+@router.get("/plans")
+def list_plans(project_key: str, status: str | None = None):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.list_plans(connection, project, status)
+
+
+@router.get("/plans/{key}")
+def get_plan(project_key: str, key: str):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.plan_view(connection, project, key)
+
+
+@router.post("/plans/{key}/members", status_code=201)
+def add_plan_members(project_key: str, key: str, payload: PlanMembersIn, actor: str = Depends(actor_name)):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.add_to_plan(connection, project, key, [(m["type"], m["key"]) for m in payload.members], actor)
+
+
+@router.post("/plans/{key}/status")
+def set_plan_status(project_key: str, key: str, status: str, actor: str = Depends(actor_name)):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.set_plan_status(connection, project, key, status, actor)
+
+
+@router.post("/refs", status_code=201)
+def add_ref(project_key: str, payload: RefIn, actor: str = Depends(actor_name)):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.add(connection, project, payload.from_type, payload.from_key, payload.relation, payload.to_type, payload.to_key,
+                        payload.version_range, payload.seq, payload.note, payload.source, payload.source_ref, actor)
+
+
+@router.post("/refs/end")
+def end_ref(project_key: str, payload: RefIn, actor: str = Depends(actor_name)):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.end(connection, project, payload.from_type, payload.from_key, payload.relation, payload.to_type, payload.to_key, actor)
+
+
+@router.get("/refs")
+def show_refs(project_key: str, type: str, key: str, ended: bool = False):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.show(connection, project, type, key, ended)
+
+
+@router.post("/retire")
+def retire(project_key: str, payload: RetireIn, actor: str = Depends(actor_name)):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.retire(connection, project, payload.type, payload.key, payload.reason, actor)
+
+
+@router.get("/stale")
+def stale(project_key: str):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.stale(connection, project)
 
 
 @router.get("/adr/next")
