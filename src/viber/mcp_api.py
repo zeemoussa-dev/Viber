@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from . import __version__, adr, graph, refs, service, sessions, specs
+from . import __version__, adr, consolidation, graph, refs, service, sessions, specs
 from .atoms import FACT_MAX, RULE_MAX
 from .db import record_audit, transaction
 from .models import ChangeIn, DecisionIn, FactIn, HandoffIn, ItemIn, RuleIn
@@ -86,6 +86,10 @@ TOOLS = [
     tool("viber_retire", "Mark something obsolete without deleting it (decision, spec, fact or plan). Its applies_to and about links end.",
          {"thing": {"type": "string", "description": "type:key"}, "reason": {"type": "string"}}, ["thing"]),
     tool("viber_stale", "List decisions, specs and facts still linked to a component that is deprecated or archived, for review.", {}, []),
+    tool("viber_consolidate", "Have the chat model turn new episodes into facts and proposed rules (rules wait for a human). Needs VIBER_LLM_* set.", {}, []),
+    tool("viber_reflect", "Write a short current summary of one component from its recent work; it replaces the previous summary.",
+         {"component": {"type": "string"}}, ["component"]),
+    tool("viber_duplicates", "List live facts that mean nearly the same thing, so the older one can be superseded.", {}, []),
 ]
 
 
@@ -259,7 +263,22 @@ def run_stale(connection, project, arguments):
     return "\n".join(f"{r['type']}:{r['key']} {r['relation']} {r['component']} ({r['lifecycle']})" for r in rows) or "Nothing is tied to a deprecated or archived component."
 
 
-RUNNERS = {"viber_plan": run_plan, "viber_plan_add": run_plan_add, "viber_ref": run_ref, "viber_refs": run_refs,
+def run_consolidate(connection, project, arguments):
+    r = consolidation.propose(connection, project, ACTOR)
+    return f"{r['episodes']} episode(s) read: {r.get('facts', 0)} fact(s) stored, {r.get('rules', 0)} rule(s) proposed, {r.get('dropped', 0)} dropped." + (f" {r['note']}" if r.get("note") else "")
+
+
+def run_reflect(connection, project, arguments):
+    r = consolidation.reflect(connection, project, arguments["component"], ACTOR)
+    return f"{r['component']}: {r['statements']} statement(s) written." + (f" {r['note']}" if r.get("note") else "")
+
+
+def run_duplicates(connection, project, arguments):
+    rows = consolidation.duplicates(connection, project)
+    return "\n".join(f"{r['similarity']} older {r['older']}: {r['older_text'][:80]} | newer {r['newer']}: {r['newer_text'][:80]}" for r in rows) or "No near-duplicate facts."
+
+
+RUNNERS = {"viber_consolidate": run_consolidate, "viber_reflect": run_reflect, "viber_duplicates": run_duplicates, "viber_plan": run_plan, "viber_plan_add": run_plan_add, "viber_ref": run_ref, "viber_refs": run_refs,
            "viber_retire": run_retire, "viber_stale": run_stale, "viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
            "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions,
            "viber_next_adr": run_next_adr, "viber_get_adr": run_get_adr, "viber_spec_add": run_spec_add,

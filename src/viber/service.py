@@ -213,12 +213,12 @@ RRF_K = 60
 KIND_WEIGHT = {"rule": 1.3}
 
 
-def fuse(keyword: list[dict], meaning: list[dict]) -> list[dict]:
-    """Reciprocal rank fusion of the keyword and meaning lists (Second Brain's method): a thing found by both outranks one
-    found by either, and ranks are compared, not scores, so the two kinds of score never need to agree."""
+def fuse(keyword: list[dict], meaning: list[dict], graph: list[dict] | None = None) -> list[dict]:
+    """Reciprocal rank fusion of the keyword, meaning and graph lists (Second Brain's method): a thing found by several
+    outranks one found by one, and ranks are compared, not scores, so the kinds of score never need to agree."""
     scores: dict[tuple, float] = {}
     rows: dict[tuple, dict] = {}
-    for via, ranked in (("keyword", keyword), ("meaning", meaning)):
+    for via, ranked in (("keyword", keyword), ("meaning", meaning), ("graph", graph or [])):
         seen = set()
         for position, row in enumerate(ranked, start=1):
             key = (row["kind"], str(row["id"]))
@@ -229,17 +229,20 @@ def fuse(keyword: list[dict], meaning: list[dict]) -> list[dict]:
             entry = rows.setdefault(key, {"kind": row["kind"], "id": str(row["id"]), "content": row["content"], "via": set()})
             entry["via"].add(via)
     ordered = sorted(rows, key=lambda k: scores[k], reverse=True)
-    return [{**rows[k], "rank": round(scores[k], 5), "via": "both" if len(rows[k]["via"]) == 2 else next(iter(rows[k]["via"]))} for k in ordered]
+    names = {1: None, 2: "both", 3: "all"}
+    return [{**rows[k], "rank": round(scores[k], 5), "via": names[len(rows[k]["via"])] or next(iter(rows[k]["via"]))} for k in ordered]
 
 
 def recall(connection, project: dict, query: str, limit: int) -> dict:
-    """Keyword search always; meaning search too when the embedding service is up. Fused by rank."""
-    from . import embeddings
+    """Keyword search always; meaning search when the embedding service is up; graph hops when the question names a known
+    entity. Fused by rank."""
+    from . import embeddings, graph
     keyword = connection.execute(RECALL_SQL, {"q": query, "p": project["id"], "n": limit * 3}).fetchall()
     meaning = embeddings.vector_hits(connection, project, query, limit * 3)
-    results = fuse(keyword, meaning)[:limit] if meaning is not None else [
+    hops = graph.hits_for_query(connection, project, query, limit * 2)
+    results = fuse(keyword, meaning or [], hops)[:limit] if (meaning is not None or hops) else [
         {**row, "id": str(row["id"]), "via": "keyword"} for row in keyword[:limit]]
     lines = [CONTEXT_PREAMBLE] + [
         f"[{row['kind']}:{row['id']}] {' '.join(row['content'].split())[:300]}" for row in results
     ]
-    return {"items": results, "context": "\n".join(lines), "mode": "hybrid" if meaning is not None else "keyword"}
+    return {"items": results, "context": "\n".join(lines), "mode": "hybrid" if meaning is not None else ("keyword+graph" if hops else "keyword")}

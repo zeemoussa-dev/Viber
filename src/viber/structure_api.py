@@ -1,8 +1,9 @@
 """REST for decision numbers, specs and the memory graph. The MCP tools wrap the same functions."""
 from fastapi import APIRouter, Depends
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from . import adr, graph, refs, service, specs
+from . import adr, graph, refs, service, specs, views
 from .atoms import EPISODE_MAX, FACT_MAX, RELATION_MAX, RULE_MAX, SPEC_MAX, split_atoms
 from .db import transaction
 from .models import EpisodeIn, FactIn, RuleIn
@@ -197,6 +198,17 @@ def stale(project_key: str):
     with transaction() as connection:
         project = service.project_row(connection, project_key)
         return refs.stale(connection, project)
+
+
+def _register_view(view_name: str) -> None:
+    @router.get(f"/views/{view_name}", response_class=PlainTextResponse, name=f"view_{view_name}")
+    def view(project_key: str):
+        with transaction() as connection:
+            return views.render(connection, service.project_row(connection, project_key), view_name)
+
+
+for _name in views.RENDERERS:  # one explicit route each, so /views/changelog and /views/bugs keep their own handlers
+    _register_view(_name)
 
 
 @router.get("/adr/next")

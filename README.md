@@ -76,6 +76,20 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   model; it stays keyword-searchable. `GET /v1/memory-health` shows provider, model, vectors, pending and the last
   error. **Recall checks** (`POST .../recall/checks`, `GET .../recall/checks/run`) are questions with the answer they
   must return; run them after any change so ranking cannot quietly get worse.
+- **Graph hops in recall:** when a question names a known entity (or an alias), recall also returns the facts linked to
+  it and its live relations, fused with keyword and meaning results (`via` says which found each row).
+- **Consolidation and reflection (v0.8):** `POST .../memory/consolidate` reads the episodes since the last run and asks
+  a chat model to propose facts and rules (facts carry trust `agent` and source `consolidation`; every rule waits for a
+  human). `POST .../memory/reflect?component=` writes a short current summary of one component, replacing the last.
+  Needs `VIBER_LLM_PROVIDER` (`ollama` or `openai`), `VIBER_LLM_MODEL`, `VIBER_LLM_URL`, `VIBER_LLM_KEY`; without them it
+  answers 409 and says so. Always available without a model: `GET .../memory/duplicates` (near-identical facts, by
+  vector) and `POST .../memory/supersede` (end the older fact, keeping it in the history).
+- **Generated views:** `GET .../views/{status|adr|rules|specs|plans|backlog|changelog|bugs}` render markdown from the
+  tables on demand. They are read-only output and never a source of truth.
+- **Roles (v0.8):** `read` < `write` < `review` < `admin`. The master `VIBER_TOKEN` is admin. Make named tokens on the
+  dashboard's System page or `POST /v1/tokens {name, role}` (shown once, only a hash is kept, revocable). A named token is
+  its own actor in the audit log. Give sessions a Write token: it records work and proposes, but cannot accept rules or
+  decisions, retire things, or make projects and tokens. MCP tools are classed the same way.
 - **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,

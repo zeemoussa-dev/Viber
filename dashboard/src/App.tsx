@@ -12,6 +12,7 @@ import { Overview } from './pages/Overview';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ReviewPage } from './pages/ReviewPage';
 import { SessionsPage } from './pages/SessionsPage';
+import { SystemPage } from './pages/SystemPage';
 import { WorkPage } from './pages/WorkPage';
 
 function NavItem({ to, icon, label, end }: { to: string; icon: string; label: string; end?: boolean }) {
@@ -69,6 +70,9 @@ function Shell() {
             <NavItem to="/map" icon="hub" label="Map" />
             <NavItem to="/memory" icon="psychology" label="Memory" />
           </NavSection>
+          <NavSection title="Viber">
+            <NavItem to="/system" icon="settings" label="System" />
+          </NavSection>
         </div>
         <div className="sidebar-foot">
           <NavItem to="/projects" icon="folder_open" label={collapsed ? 'Projects' : `Project: ${project ?? 'none'}`} />
@@ -77,6 +81,7 @@ function Shell() {
       <main className="main">
         <Routes>
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/system" element={<SystemPage />} />
           {project === null ? (
             <Route path="*" element={<NoProject />} />
           ) : (

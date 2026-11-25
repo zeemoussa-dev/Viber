@@ -94,6 +94,28 @@ def around(connection, project: dict, name: str, limit: int = 40) -> dict:
     return {"entity": entity["name"], "kind": entity["kind"], "aliases": aliases, "edges": edges, "facts": [f["text"] for f in facts]}
 
 
+def hits_for_query(connection, project: dict, query: str, limit: int) -> list[dict]:
+    """Recall by graph hops: entities the question names (by name or alias), then the facts linked to them and their live
+    relations. Returned as ranked rows like any other recall source; empty when the question names nothing known."""
+    q = " " + " ".join((query or "").lower().split()) + " "
+    entities = connection.execute(
+        "SELECT DISTINCT e.id, e.name FROM entity e LEFT JOIN entity_alias a ON a.entity_id = e.id "
+        "WHERE e.project_id = %s AND e.merged_into IS NULL AND ((length(e.name) >= 3 AND position(lower(e.name) in %s) > 0) "
+        "OR (a.alias IS NOT NULL AND length(a.alias) >= 3 AND position(lower(a.alias) in %s) > 0))", (project["id"], q, q)).fetchall()
+    if not entities:
+        return []
+    ids = [e["id"] for e in entities]
+    rows = connection.execute(
+        "SELECT 'fact' AS kind, f.id::text AS id, f.text AS content FROM fact_entity fe JOIN fact f ON f.id = fe.fact_id "
+        "WHERE fe.entity_id = ANY(%s) AND f.valid_to IS NULL ORDER BY f.created_at DESC LIMIT %s", (ids, limit)).fetchall()
+    for edge in connection.execute(
+            "SELECT s.name AS s, g.relation, o.name AS o FROM edge g JOIN entity s ON s.id = g.subject_id JOIN entity o ON o.id = g.object_id "
+            "WHERE g.project_id = %s AND g.valid_to IS NULL AND (g.subject_id = ANY(%s) OR g.object_id = ANY(%s)) "
+            "ORDER BY g.valid_from DESC LIMIT %s", (project["id"], ids, ids, limit)).fetchall():
+        rows.append({"kind": "graph", "id": f"{edge['s']}|{edge['relation']}|{edge['o']}", "content": f"{edge['s']} {edge['relation']} {edge['o']}"})
+    return rows[:limit]
+
+
 def graph_text(result: dict) -> str:
     lines = [f"{result['entity']} ({result['kind']})" + (f", also {', '.join(result['aliases'])}" if result["aliases"] else "")]
     lines += [f"- {e['subject']} {e['relation']} {e['object']}" for e in result["edges"]]

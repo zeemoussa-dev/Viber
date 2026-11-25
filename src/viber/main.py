@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, dashboard_api, embeddings, links, map_api, mcp_api, memory_api, service, session_api, structure_api
+from . import __version__, dashboard_api, embeddings, links, map_api, mcp_api, memory_api, service, session_api, structure_api, tokens_api
 from .security import actor_name, require_token
 from .db import DryRunRollback, close_pool, insert_idempotent, record_audit, run_migrations, transaction
 from .models import (ComponentIn, ChangeIn, DecisionIn, EpisodeIn, FactIn, ImportBatch, ItemIn,
@@ -32,6 +32,7 @@ app.include_router(map_api.router)
 app.include_router(session_api.router)
 app.include_router(structure_api.router)
 app.include_router(memory_api.router)
+app.include_router(tokens_api.router)
 app.include_router(mcp_api.router)
 app.include_router(dashboard_api.router)
 
