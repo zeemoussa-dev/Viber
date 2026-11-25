@@ -90,6 +90,16 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   dashboard's System page or `POST /v1/tokens {name, role}` (shown once, only a hash is kept, revocable). A named token is
   its own actor in the audit log. Give sessions a Write token: it records work and proposes, but cannot accept rules or
   decisions, retire things, or make projects and tokens. MCP tools are classed the same way.
+- **Memory is per project (v0.9):** every query is filtered by project, links cannot cross projects, and numbering restarts in
+  each. A token can be limited to some projects (System page, or `project_keys` on `POST /v1/tokens`): it is refused (403)
+  for any other project and sees only its own in `GET /v1/projects`. The hook no longer assumes a project: it asks
+  `GET /v1/resolve?repo=owner/name&cwd=...`, which answers by a component's `repo`, then by a project's
+  `settings.workspaces` (folder prefixes); a session in a place no project owns gets nothing and writes nothing. Set
+  `VIBER_PROJECT` only on a single-project machine.
+- **Prompt vault:** `GET .../prompts` lists a project's prompts, `GET .../prompts/{key}?component=` returns one as plain text
+  with `{project}` and `{component}` filled in, `PUT .../prompts/{key}` saves one (one statement per line),
+  `POST .../prompts/seed` adds the default set (start, resume, component, bug, decide, plan, consolidate, finish). The MCP
+  tool `viber_prompt` reads them; the dashboard's Prompts page copies one to paste as a session's first message.
 - **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,
