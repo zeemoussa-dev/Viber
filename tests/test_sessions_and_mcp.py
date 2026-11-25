@@ -152,6 +152,19 @@ def test_mcp_handoff_and_sessions_tools(client, project_key):
     assert "hooks wired" in ctx
 
 
+def test_a_session_can_use_its_tag_where_a_tool_asks_for_its_session_id(client, project_key):
+    session = start(client, project_key, goal="by tag")
+    assert f"session_id='{session['tag']}'" in session["context"]
+    text, error = call(client, "viber_handoff", {"project": project_key, "session_id": session["tag"].lower(), "summary": "via tag"})
+    assert not error and session["tag"] in text
+    other = start(client, project_key)
+    ctx, _ = call(client, "viber_context", {"project": project_key, "session_id": other["tag"]})
+    assert "via tag" in ctx
+    base = f"/v1/projects/{project_key}/sessions"
+    assert client.post(f"{base}/{session['tag']}/touch", json={"path": "x.py"}).status_code == 200
+    assert client.post(f"{base}/S999/touch", json={"path": "x.py"}).status_code == 404
+
+
 def test_mcp_errors_are_reported_not_raised(client, project_key):
     assert call(client, "viber_recall", {"project": "nope", "query": "x"})[1] is True
     assert call(client, "viber_recall", {"project": project_key})[1] is True

@@ -22,6 +22,15 @@ Send `X-Viber-Actor: <name>` on writes so the audit log names who did it.
   `source` + `source_ref` or by key; `?dry_run=true` writes nothing), generated views (`changelog`, `bugs`).
 - Not built yet: streams/claims/locks, MCP server, hooks, dashboard, pgvector recall.
 
+## Connecting a repository: `project-scaffold`
+
+`project-scaffold` is a prompt you paste into Claude Code in any repo. It checks Viber, registers the project and
+component, wires the hooks (`hooks/install.ps1`), writes `.mcp.json`, a short `CLAUDE.md` and seven slash commands
+(`/quick`, `/bug`, `/recall`, `/remember`, `/decide`, `/handoff`, `/status`), and can import a repo's old
+`BUGS.md`, `CHANGELOG.md`, `MEMORY.md`, ADR and learnings files through the import API. It replaces the original
+markdown pipeline scaffold, kept at `docs/legacy/project-scaffold-v1.md`. Stories, tasks and sprints are not
+replaced yet (the full lane in `SPEC.md` is unbuilt).
+
 ## Dashboard (v0.5)
 
 Served by the API container at **http://localhost:8088/dashboard/** (the root redirects there). A React 19 +

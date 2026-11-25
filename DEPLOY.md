@@ -55,8 +55,13 @@ Claude Code keeps out of git) with the Viber env and hooks for this machine's pa
 keeps a `.bak` of the original, and is safe to run again:
 
 ```powershell
-.\hooks\install.ps1 -Repo E:\MyWorx\sbos-v3\sb-core -Project sbos -Token <token>
+.\hooks\install.ps1 -Repo E:\MyWorx\sbos-v3\sb-core -Project sbos
 ```
+
+The token is read from the `VIBER_TOKEN` environment variable (set it once for your user:
+`[Environment]::SetEnvironmentVariable("VIBER_TOKEN","<token>","User")`, then restart Claude Code); pass `-Token` only to
+override it. Or skip all of this by pasting `project-scaffold` into Claude Code in the repo, which does these steps, writes
+the repo's `CLAUDE.md` and slash commands, and imports its old tracking files.
 
 Then add the MCP server so Claude can call `viber_recall`, `viber_quick`, `viber_bug`, `viber_remember`,
 `viber_decide`, `viber_handoff`, `viber_sessions` and `viber_context`. Put this in the repo's `.mcp.json` (Claude asks you to
