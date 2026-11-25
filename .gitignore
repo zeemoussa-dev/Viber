@@ -12,3 +12,7 @@ dashboard/dist/
 .claude/settings.local.json.bak
 
 *.dump
+
+tools/local/
+tools/out/
+tools/reports/
