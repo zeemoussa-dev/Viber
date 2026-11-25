@@ -73,6 +73,9 @@ def create_item(connection, project: dict, payload: ItemIn, actor: str = DEFAULT
 
 
 def create_decision(connection, project: dict, payload: DecisionIn, actor: str = DEFAULT_ACTOR) -> tuple[dict, bool]:
+    match = KEY_PATTERN.match(payload.key)
+    if match:
+        bump_counter_to_at_least(connection, project["id"], match.group(1).upper(), int(match.group(2)))
     values = {"project_id": project["id"], **payload.model_dump()}
     decision_id, created = insert_idempotent(connection, "decision", values)
     if created:

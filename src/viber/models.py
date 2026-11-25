@@ -26,6 +26,35 @@ class ScanIn(BaseModel):
     files: dict[str, str]
 
 
+class SessionStartIn(BaseModel):
+    session_id: str
+    cwd: str | None = None
+    repo: str | None = None  # owner/name
+    subpath: str | None = None
+    branch: str | None = None
+    host: str | None = None
+    goal: str | None = None
+    source: str | None = None
+    parent_session_id: str | None = None
+    budget_tokens: int = Field(1500, ge=200, le=8000)
+
+
+class TouchIn(BaseModel):
+    path: str
+    tool: str | None = None
+
+
+class EndIn(BaseModel):
+    summary: str | None = None
+
+
+class HandoffIn(BaseModel):
+    summary: str
+    decisions: list[str] = []
+    open_questions: list[str] = []
+    next_steps: list[str] = []
+
+
 class DiscoverIn(BaseModel):
     repo: str
     paths: list[str]

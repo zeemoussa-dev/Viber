@@ -22,6 +22,39 @@ Send `X-Viber-Actor: <name>` on writes so the audit log names who did it.
   `source` + `source_ref` or by key; `?dry_run=true` writes nothing), generated views (`changelog`, `bugs`).
 - Not built yet: streams/claims/locks, MCP server, hooks, dashboard, pgvector recall.
 
+## Sessions (v0.4): what makes Claude sessions faster
+
+The loop: a hook registers each session and injects a small **context pack**; Claude uses `viber_*` tools
+during the work; edit hooks warn when two active sessions touch the same file; `viber_handoff` carries what a
+session learned to the next one or a fork. Nothing is a file bus: everything goes through the API.
+
+- **Context pack** (`POST .../sessions/start`): accepted rules, handoffs from earlier or sibling sessions
+  (scoped to the component), other active sessions and the files they are editing, open bugs, recent
+  decisions and changes. Capped by `budget_tokens` (default 1500); the size is logged per session, see
+  `GET .../stats/sessions` (packs, average/max tokens, forks, overlap warnings, handoffs).
+- **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
+  Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
+- **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,
+  `viber_remember` (fact, or a rule a human must accept), `viber_decide` (ADR as Proposed), `viber_handoff`,
+  `viber_sessions`. Connect with:
+
+  ```powershell
+  claude mcp add --transport http viber http://localhost:8088/mcp
+  ```
+
+- **Hooks** (`hooks/viber-hook.ps1`, never blocks a session; exits 0 silently if Viber is down). Needs
+  `VIBER_PROJECT` (and `VIBER_URL`, `VIBER_TOKEN` if set). Add to `~/.claude/settings.json` (or a project's
+  `.claude/settings.json`):
+
+  ```json
+  { "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File D:/MyWorx/Projects/Viber/hooks/viber-hook.ps1 -Event SessionStart" }] }],
+    "PostToolUse":  [{ "matcher": "Edit|Write|MultiEdit", "hooks": [{ "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File D:/MyWorx/Projects/Viber/hooks/viber-hook.ps1 -Event PostToolUse" }] }],
+    "Stop":         [{ "hooks": [{ "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File D:/MyWorx/Projects/Viber/hooks/viber-hook.ps1 -Event Stop" }] }],
+    "SessionEnd":   [{ "hooks": [{ "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File D:/MyWorx/Projects/Viber/hooks/viber-hook.ps1 -Event SessionEnd" }] }]
+  } }
+  ```
+
 ## Links and versions (v0.2)
 
 - One SemVer per component. A **head** row is the latest scan of the default branch (overwritten by the next
