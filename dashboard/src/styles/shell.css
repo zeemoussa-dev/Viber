@@ -1,0 +1,361 @@
+/* Layout shell every screen reuses */
+.app-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  /* `height`, not `min-height`. With a minimum the grid row GROWS to
+     whichever column is taller, so the sidebar stretched to fit its own
+     links and never capped -- which meant its `overflow-y: auto` had
+     nothing to scroll and the foot was pushed past the bottom of the
+     window (REQ-SB-101, operator 2026-10-21). A fixed viewport height
+     bounds the row, which is what lets the sidebar scroll its links and
+     keep its foot. `.main` already scrolls itself, so the page content
+     is unaffected -- that was always the intended shape here. */
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* A column: the nav links scroll, the foot stays at the bottom.
+   It was `display: block` with a fixed height and `overflow: visible`,
+   which worked only while the links happened to be shorter than the
+   window. Adding the signed-in block at the foot (REQ-SB-101) made the
+   content taller than the viewport on an install with several plugins,
+   and the overflow spilled OUT of the sidebar box instead of scrolling
+   -- the avatar rendering over the content beside it (operator,
+   2026-10-21). A column with one scrolling child is the shape that
+   holds however many nav items a plugin adds. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* Tinted by this install's accent, not plain surface (operator, 2026-10-24).
+     --color-sidebar does the mixing in tokens.css so both themes get a tint
+     weighted for their own background. */
+  background: var(--color-sidebar);
+  border-right: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-3);
+}
+
+/* The links take the space that is left and scroll inside it. `min-height: 0`
+   is load-bearing on both: without it a flex child refuses to shrink below
+   its content, the column grows instead of scrolling, and the overflow comes
+   straight back. */
+.sidebar-links {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sidebar-version {
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.main {
+  padding: var(--space-6);
+  overflow-y: auto;
+  /* Smooth-scrolls a same-page anchor jump (Vault note detail's own
+     jump-to-section ToC, 2026-08-24). Confirmed live which element a
+     native `<a href="#id">` hash-jump actually scrolls varies by page
+     (`.main` on some, the root `<html>` on others, depending on which
+     ancestor ends up the real overflow container for that page's own
+     content height) -- `html`'s own identical rule right below covers
+     the other case, so the animation applies whichever one it is. */
+  scroll-behavior: smooth;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 7px var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: background var(--motion-fast), color var(--motion-fast);
+}
+
+.nav-item:hover {
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  color: var(--color-text);
+}
+
+/* The highlight colour's own job: this is the "you are here" marker, which is
+   why it is not the accent. An install may now set the two apart. */
+.nav-item.active {
+  background: var(--color-highlight-muted);
+  color: var(--color-highlight);
+  font-weight: 600;
+}
+
+/* The sidebar's groups (ADR-097): Work, Knowledge, Agents. */
+.nav-group-label {
+  padding: var(--space-4) var(--space-3) var(--space-1);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-faint);
+}
+
+.nav-group-label:first-child { padding-top: 0; }
+.nav-group:first-child .nav-group-label { padding-top: 0; }
+
+/* Home stands apart above the groups, and each group is set off from the next: closed
+   groups stacked label on label read as one cramped list (operator, 2026-11-07). */
+.nav-home { padding-bottom: var(--space-2); margin-bottom: var(--space-2); border-bottom: 1px solid var(--color-border); }
+.nav-group { padding: var(--space-1) 0; }
+.nav-group + .nav-group { margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--color-border); }
+.nav-group .nav-group-label { padding: var(--space-2) var(--space-3); }
+.nav-group.is-open .nav-group-label { margin-bottom: var(--space-1); }
+.app-shell.sidebar-collapsed .nav-home { padding-bottom: var(--space-1); margin-bottom: var(--space-1); }
+.app-shell.sidebar-collapsed .nav-group + .nav-group { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* A group label is a button that opens and closes its group (operator, 2026-11-07). */
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  border: 0;
+  background: none;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.nav-group-toggle:hover:not(:disabled) { color: var(--color-text-muted); }
+.nav-group-toggle:disabled { cursor: default; }
+.nav-group-toggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.nav-group-chevron { margin-left: auto; font-size: 16px; transition: transform 0.12s ease; }
+.nav-group.is-open .nav-group-chevron { transform: rotate(90deg); }
+.app-shell.sidebar-collapsed .nav-group-chevron { display: none; }
+.app-shell.sidebar-collapsed .nav-group-toggle { pointer-events: none; }
+
+.app-shell.sidebar-collapsed .nav-group-label {
+  padding: var(--space-2) 0;
+  font-size: 0;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-2) var(--space-2) 0;
+}
+
+.app-shell.sidebar-collapsed .nav-group-label:first-child { border-top: 0; margin-top: 0; }
+
+/* ==========================================================================
+   Collapsible burger-menu sidebar (REQ-SB-12)
+   Shared by every screen's .sidebar. .app-shell transitions its column
+   width so collapse/expand is an animation, not a snap.
+   ========================================================================== */
+
+.app-shell {
+  transition: grid-template-columns 0.25s ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 64px 1fr;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  /* The logo and the name can both be long or absent, and neither may
+     push the burger out of the panel. */
+  min-width: 0;
+}
+
+/* Marcellus target element (REQ-SB-52-US-01-T01, Scenario 4) — the "Second
+   Brain" wordmark, matching html-prototype/styles.css's own
+   .theme-skilltree .sidebar-header h2 precedent. Coder judgement call
+   (story Note #1 leaves the specific element open); recorded in this
+   task's own Implementation Log. */
+.sidebar-header h2 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  /* `margin: 0` is the alignment fix, not tidiness: an h2's default
+     bottom margin inside an `align-items: center` row makes the row
+     taller than its tallest item and lifts the text above the burger
+     and the logo it is supposed to sit level with. Measured at 43px
+     tall for 32px of content, with the wordmark ~6px high (2026-10-21).
+     One line, truncated: a 60-character name is allowed and wrapping it
+     would push the whole nav list down by a row or two. */
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Matched to the burger, so the two square things either side of the
+   wordmark are the same size rather than 32 against 28. */
+.sidebar-logo {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+/* Collapsed, the panel is 64px and the burger alone is 32 -- a logo
+   beside it needs 68 and would push past the edge. The burger is the
+   control you need there; the logo is decoration, so it goes. */
+.app-shell.sidebar-collapsed .sidebar-logo {
+  display: none;
+}
+
+.burger-btn {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.burger-btn .material-symbols-outlined { font-size: 20px; }
+
+.burger-btn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); color: var(--color-text); }
+
+.nav-icon {
+  display: inline-block;
+  width: 20px;
+  text-align: center;
+  margin-right: var(--space-3);
+  flex-shrink: 0;
+}
+
+.nav-icon.material-symbols-outlined { font-size: 20px; }
+
+.app-shell.sidebar-collapsed .sidebar h2,
+.app-shell.sidebar-collapsed .nav-label {
+  display: none;
+}
+
+.app-shell.sidebar-collapsed .nav-item {
+  justify-content: center;
+}
+
+.app-shell.sidebar-collapsed .nav-item .nav-icon {
+  margin-right: 0;
+}
+
+/* Mermaid diagrams (2026-09-24): a ```mermaid fence rendered by MermaidDiagram,
+   in chat, note bodies and Cockpit summaries alike. A wide diagram scrolls inside
+   its own box rather than stretching the column it sits in. */
+.mermaid-diagram {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-diagram--failed pre {
+  margin: var(--space-2) 0 0;
+  overflow-x: auto;
+}
+
+.mermaid-diagram-loading { margin: var(--space-3) 0; }
+
+/* Breadcrumbs (Plugin API 11). Page chrome, so it lives with the shell rather
+   than in one screen's stylesheet -- the framework's own pages and every
+   plugin's pages render the same trail. Generalised from the hand-rolled
+   `.azure-cost-breadcrumb`, which it replaces. */
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.breadcrumbs-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The separator is decorative and aria-hidden; keeping it dimmer than the
+   labels stops the trail reading as one run-on line. */
+.breadcrumbs-separator {
+  opacity: 0.6;
+}
+
+/* The way back, on every screen (operator, 2026-10-17). Sits above the content
+   in the shell, so it reads as part of the frame rather than as something the
+   page drew -- and so a page added later gets it without doing anything. */
+.back-control {
+  margin-bottom: var(--space-4);
+}
+
+.back-control-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.back-control-button:hover {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+/* A screen that failed to render (BUG-089). Sits inside <main>, so the sidebar
+   and the way back are still there -- the point of the boundary is that the
+   frame survives. */
+.screen-error {
+  max-width: 48rem;
+}
+
+.screen-error-title {
+  margin-bottom: var(--space-2);
+}
+
+.screen-error-detail {
+  margin: var(--space-4) 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
+.screen-error-retry {
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.screen-error-retry:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}

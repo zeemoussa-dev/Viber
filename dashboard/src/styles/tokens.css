@@ -1,0 +1,476 @@
+/* Real local font files, no CDN/network fetch (REQ-SB-52, 2026-08-15) —
+   src is root-relative into public/fonts/, matching this app's own
+   existing public/ static-asset convention (favicon.svg/icons.svg).
+   Plus Jakarta Sans is a variable font (one file, weight range 200-800);
+   Marcellus is a single static weight. Recipe matches
+   html-prototype/styles.css's own established @font-face rules verbatim. */
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("/fonts/PlusJakartaSans-Variable.woff2") format("woff2");
+}
+
+/* The three fonts Branding offers (2026-10-24). All variable (one file, a
+   weight range), all SIL Open Font License with the licence text beside them
+   in public/fonts/licences/ -- bundling a font means shipping its licence.
+   Inter is the project's own full file; the other two are the Latin subsets,
+   which is why they are an order of magnitude smaller. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url("/fonts/IBMPlexSans-Variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url("/fonts/SourceSans3-Variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Marcellus";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Marcellus-Regular.woff2") format("woff2");
+}
+
+/* Material Symbols (operator, 2026-08-15: "Using Google Fonts there is
+   one that is Icons Based mdi... beautify the UI") — Google's own
+   current icon-font family (successor to "Material Icons"; the
+   community "MDI"/Material Design Icons project the operator half-
+   remembered isn't on Google Fonts itself). Same self-hosted,
+   no-runtime-network-fetch recipe as Plus Jakarta Sans/Marcellus above
+   — downloaded once from Google Fonts' own static CDN
+   (fonts.gstatic.com) to public/fonts/, not linked live. Each icon is
+   rendered as plain text naming the icon (e.g. "psychology") inside an
+   element carrying the `.material-symbols-outlined` class below — the
+   font's own `liga` OpenType feature substitutes that name with the
+   actual glyph; see visualOptions.ts for this app's own curated name
+   list. */
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url("/fonts/MaterialSymbolsOutlined.woff2") format("woff2");
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
+:root {
+  /* Color — dark theme, copper accent (REQ-SB-52, 2026-08-15 — supersedes
+     the 2026-08-10 reversal to light/green per a fresh, explicit operator
+     instruction, "Whole app," not a silent flip-flop). Every screen
+     composes from these tokens, so this swap cascades with no per-screen
+     edits. Values sourced from the PRD's REQ-SB-52 2026-08-15 update block
+     and html-prototype/styles.css's own body.theme-skilltree block (~line
+     1360) — see REQ-SB-52-US-01-T01's own Context/Notes mapping table for
+     the full source trace. */
+  --color-bg: #0e1118;
+  --color-surface: #171a22;
+  --color-surface-raised: #1f2430;
+  /* A second surface level, for a panel sitting INSIDE a card: the
+     Marketplace's install result, the auth screens' filled blocks. Five rules
+     referenced this and nothing ever defined it, so each took its own
+     fallback -- and settings.css's was a light-theme #f6f7f9, which put this
+     palette's near-white text on a near-white box at about 1.1:1. "Installed
+     into section ..." was invisible after every plugin install (operator,
+     2026-10-24). The four in auth.css had no fallback at all, so their
+     background silently never applied. */
+  --color-surface-2: #232834;
+  /* A recessed well: the sign-in card's inner blocks, the logo preview, the
+     plugin host's empty states. Used eight times across auth.css and
+     shell.css and defined nowhere until the theme work gave the palette an
+     owner -- seven of those had no fallback, so they had simply never
+     painted a background at all (2026-10-24). */
+  --color-surface-sunken: #12151c;
+  /* A box a person types into. It was the sunken well, which read as greyed out:
+     an editable box looked disabled (operator, 2026-11-05). A field is lifted
+     off its card instead, and only a disabled one is sunken. */
+  --color-field: #222735;
+  --color-field-border: rgba(233, 228, 214, 0.26);
+  --color-border: rgba(233, 228, 214, 0.1);
+  --color-text: #e9e4d6;
+  --color-text-muted: #b9b4a6;
+  /* Branding sets this one at runtime (Settings > Branding). Everything
+     accent-coloured in the app derives from it below rather than repeating a
+     copper hex, so a custom accent reaches every surface at once and no rule
+     is left on the old colour. */
+  --color-accent: #c58b5f;
+  /* Derived, not a second hex: a stored rgba() of the copper would stay copper
+     under a custom accent -- the failure mode where an install "changed its
+     colour" and half the app disagreed. */
+  --color-accent-muted: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  /* The readable text colour ON the accent. A light accent needs dark text and
+     a dark one needs light, so BrandingProvider computes this from the chosen
+     accent's luminance and sets it inline; this value is the default for the
+     shipped copper and for any load that happens before branding is read. */
+  --color-on-accent: #0e1118;
+  /* Three branded colours, because one was doing three jobs that pull apart
+     (operator, 2026-10-24: "May be we need more than 1 Color as Accent?").
+     Each is set at runtime by Branding and has its own computed ink:
+
+     - accent    the things you CLICK: buttons, links, focus rings. May be loud.
+     - surface   large QUIET areas: the side panel's tint. A colour strong
+                 enough for a button covers a whole sidebar badly, which is
+                 why this one is mixed down to a tint rather than used flat.
+     - highlight "you are HERE": the active nav item, selected rows, active
+                 tabs. Has to be distinguishable from the other two or the
+                 marker stops reading as a marker.
+
+     Unset, surface and highlight follow the accent, so an install that chose
+     one colour looks exactly as it did until someone picks the others. */
+  --color-brand-surface: var(--color-accent);
+  --color-highlight: var(--color-accent);
+  --color-on-highlight: var(--color-on-accent);
+  --color-highlight-muted: color-mix(in srgb, var(--color-highlight) 16%, transparent);
+
+  /* The side panel (operator, 2026-10-24: the accent "will Affect the Side
+     Panel Color"). A tint of the surface, not the colour itself: the sidebar
+     is a large area and a saturated one fights every screen it frames. */
+  --color-sidebar: color-mix(in srgb, var(--color-brand-surface) 10%, var(--color-surface));
+  --color-success: #16a34a;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  /* The UI standard (ADR-097). Info is the fourth status tone ("running",
+     "new"); strong border outlines a control where a hairline would vanish;
+     faint is for group labels and hints, never body text. */
+  --color-info: #60a5fa;
+  --color-border-strong: rgba(233, 228, 214, 0.16);
+  --color-text-faint: #8a857a;
+
+  /* Depth. Shadows are dark-on-dark here, so they read as lift rather than
+     as a glow; light mode states its own, softer set. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.5);
+
+  /* Type. --font-sans is chosen in Settings > Branding and applied as a
+     `data-font` attribute on <html> (the three blocks below). The stack here
+     is the default for an install that never chose. */
+  --font-sans: "Inter", "Plus Jakarta Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: "Marcellus", Georgia, "Times New Roman", serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.9375rem;
+  --font-size-lg: 1.125rem;
+  /* xl was the same 1.5rem as 2xl, so a step of the scale was missing (2026-11-07 audit). */
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  /* Icon sizes: 18/20/24px were written by hand all over the CSS. */
+  --icon-size-sm: 18px;
+  --icon-size-md: 20px;
+  --icon-size-lg: 24px;
+
+  /* Spacing (4px scale) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Shape. Rounder since Soft Depth (ADR-097): 4/8/12 read as a form, these
+     read as an app. */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Controls share one height so a button, a search box and a segmented
+     group sit level in a toolbar. */
+  --control-height: 36px;
+  --control-height-sm: 30px;
+  --motion-fast: 120ms ease;
+
+  /* Agent-type colors (REQ-SB-12) — a new agent type is a new
+     --agent-color-<type> token here plus one .agent-node--<type> rule below
+     that sets --node-color from it; never a layout change. Reworked
+     2026-08-15 (operator: "the Workers/Jobs to be White, Experts to have
+     a Color That Matches our design, Producers a different color that
+     matchs the design as well") — worker is plain --color-text (the same
+     "white" the Agent<->Hub connector lines already use, not a literal
+     #fff); expert takes --color-accent itself, the app's own real
+     signature copper, as the most literal "matches our design" color;
+     producer draws its own distinct hue from the SAME curated palette
+     visualOptions.ts's VISUAL_COLORS already exercises (not a new
+     invented value), picked to avoid colliding with any Section's own
+     color (sample_data.py's SECTIONS) so a Producer node never gets
+     mistaken for "belongs to that Section" at a glance. Superseded the
+     prior arbitrary blue/purple/pink trio from before REQ-SB-52's
+     copper-theme pass ever revisited them. */
+  --agent-color-worker: var(--color-text);
+  --agent-color-producer: #65a30d;
+  --agent-color-expert: var(--color-accent);
+
+  /* The Vault graph — node-kind-color palette (REQ-SB-75-US-01-T02) — an
+     8-slot ROTATING palette, not a fixed kind-name mapping: the vault's
+     real frontmatter `type` values are open-ended (AC-01), so
+     VaultGraphCanvas.tsx hashes each node's own real `kind` string
+     deterministically into one of these 8 slots rather than naming any
+     specific kind here. Values are this app's own already-curated
+     palette (visualOptions.ts's VISUAL_COLORS / the existing
+     --agent-color-producer/--color-success/--color-warning/--color-danger
+     tokens), not new arbitrary hues — an ordinary extension of the
+     "Agent-type colors" rotating-token-per-category pattern above.
+     --graph-edge-color is a dedicated, slightly-more-visible-than-border
+     stroke color for edge lines on the dark canvas background. Kept
+     fully opaque (2026-08-23) -- VaultGraphCanvas.tsx now controls edge
+     opacity itself, per-frame, via canvas globalAlpha (EDGE_ALPHA_BASE/
+     DIMMED/HIGHLIGHT -- the density/hover-highlight solution), so a
+     second, baked-in alpha here would just silently multiply against
+     that and make every edge fainter than the JS constants intend. */
+  --graph-kind-color-1: var(--color-accent);
+  --graph-kind-color-2: var(--agent-color-producer);
+  --graph-kind-color-3: var(--color-success);
+  --graph-kind-color-4: var(--color-warning);
+  --graph-kind-color-5: var(--color-danger);
+  --graph-kind-color-6: #2563eb;
+  --graph-kind-color-7: #7c3aed;
+  --graph-kind-color-8: #0891b2;
+  --graph-edge-color: rgb(233, 228, 214);
+}
+
+/* The graph edge colour, for light. It has to be stated twice because it is
+   a LITERAL rather than a reference: the dark value is this theme's cream,
+   and on a light canvas that is a white line on a white background -- which
+   is how the knowledge graph drew its edges the moment light mode existed
+   (operator, 2026-10-24: "The Lines that Connects the Nodes are not Affected
+   by the Theme Renders as white"). Kept opaque for the reason above: the
+   canvas sets edge alpha per frame, and a second baked-in alpha would
+   multiply against it. */
+:root[data-theme="light"] {
+  --graph-edge-color: rgb(27, 26, 23);
+}
+
+/* The three fonts Branding offers (operator, 2026-10-24: "the Option to choose
+   the fonts from a Set of Predefined ones 3 Options is fine"). An attribute
+   rather than an inline style: the choice is one of three known values, so it
+   belongs in the stylesheet where the stacks can be read, and `data-font` on
+   <html> is one attribute to set before first paint.
+
+   Each family is a real local file, like the two already here -- no CDN, since
+   these installs sit in closed networks where a webfont fetch simply fails and
+   the page silently falls back.
+
+   Plus Jakarta Sans sits behind each of the three: it is the font this app has
+   always shipped and the one file that is certainly present, so a chosen
+   family whose file is missing degrades to the app's own typeface instead of
+   to whatever Segoe UI the machine happens to have. */
+:root[data-font="inter"] {
+  --font-sans: "Inter", "Plus Jakarta Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+:root[data-font="plex"] {
+  --font-sans: "IBM Plex Sans", "Plus Jakarta Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+:root[data-font="source"] {
+  --font-sans: "Source Sans 3", "Plus Jakarta Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Light theme (operator, 2026-10-24: a theme is part of Branding, light and
+   dark). Values only -- every rule in the app already composes from the tokens
+   above, so this block is the whole palette swap and no screen needs a second
+   version of itself.
+
+   Dark stays on :root, so an install that never chose a theme, and any paint
+   that happens before branding is read, look exactly as they did.
+
+   Warm, not neutral grey: the accent is copper and the dark theme's text is
+   cream, so a blue-grey light theme would read as a different product rather
+   than the same one in daylight.
+
+   What this actually inverts is RELATIONSHIPS, which is the part worth
+   watching. The Agents Map's connector lines, the body's dot grid and the
+   worker node colour are all `--color-text` (near-white in dark) -- they
+   become near-black here, which is correct, and would be invisible if any of
+   them had been written as a literal instead. */
+:root[data-theme="light"] {
+  /* A shade under the cards, not near-white: white cards on #faf8f5 had nothing to stand on
+     and the theme read flat (operator, 2026-11-20). */
+  --color-bg: #efebe4;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f3f0ea;
+  --color-surface-2: #ebe7df;
+  --color-surface-sunken: #f0ece5;
+  --color-field: #ffffff;
+  --color-field-border: rgba(27, 26, 23, 0.3);
+  --color-border: rgba(27, 26, 23, 0.14);
+  --color-text: #1b1a17;
+  --color-text-muted: #5f5a4f;
+  /* Darker than the dark theme's, because these sit on white: #16a34a on
+     #ffffff is 2.8:1 and unreadable as text. */
+  --color-success: #15803d;
+  --color-warning: #a16207;
+  --color-danger: #b91c1c;
+  --color-info: #1d4ed8;
+  --color-border-strong: rgba(27, 26, 23, 0.2);
+  --color-text-faint: #7d776b;
+  /* Layered and warm-tinted: one faint shadow vanished on white, so a card lifts with a
+     close contact shadow and a soft ambient one, the way light falls on paper. */
+  --shadow-sm: 0 1px 2px rgba(64, 46, 28, 0.08), 0 1px 1px rgba(64, 46, 28, 0.04);
+  --shadow-md: 0 1px 2px rgba(64, 46, 28, 0.08), 0 6px 16px -4px rgba(64, 46, 28, 0.12), 0 18px 40px -12px rgba(64, 46, 28, 0.16);
+  --shadow-lg: 0 2px 4px rgba(64, 46, 28, 0.06), 0 28px 64px -16px rgba(64, 46, 28, 0.3);
+  --color-on-accent: #ffffff;
+  /* Less tint than dark: the same 10% over white is far more saturated than
+     over #171a22, and the sidebar would shout. */
+  --color-sidebar: color-mix(in srgb, var(--color-brand-surface) 7%, var(--color-surface));
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  /* Faded dot-grid texture, system-wide (2026-08-30, operator: "a
+     background instead of Plain Color to have some small dots faded
+     to give a effect of a 3D Mode") -- a real background-image, not
+     just a flat --color-bg fill, so the app-wide default reads as a
+     shallow depth field rather than a flat plane. `background-color`
+     stays --color-bg (unchanged base); the dots layer on top via
+     `background-image`, so anything already relying on plain
+     var(--color-bg) still resolves correctly. 24px spacing, 1px dots,
+     10% opacity relative to --color-text -- subtle enough to read as
+     texture, not a distracting pattern. */
+  background-color: var(--color-bg);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+/* Themed scrollbars (2026-08-30, operator: "change the scrolls to be
+   matching the site Theme" then "need to be slimmer so it doesn't eat
+   space") -- global, so every scrollable surface (side panel body,
+   field-editor-modal-body, checklist-picker, tag-tree, the map canvas
+   itself, etc.) picks this up with no per-component CSS. Firefox has
+   no thumb/track color-mix equivalent to Chromium's ::-webkit-scrollbar
+   pseudo-elements, so `scrollbar-color` gets flat token colors instead
+   (its own two-value shorthand doesn't accept color-mix() reliably
+   across engines) -- `thin` is Firefox's own real width keyword, not a
+   px value, so the pairing gets close but not pixel-identical to the
+   8px webkit thumb below; both land on the same visual language
+   (a muted thumb barely lighter than the surface, no bright track). */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-text-muted) 55%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Themed checkboxes/radios, app-wide (2026-09-02, operator: "change the
+   checkbox app wide to match the theme not the white background one") --
+   `accent-color` is the browser's own native theming hook for a checked
+   checkbox/radio's fill (every modern engine supports it, no custom SVG
+   replacement needed); the UNCHECKED state still renders with the OS/
+   browser's own default white box, which is what `color-scheme: dark`
+   fixes -- it tells the browser this page is dark-themed so its own
+   built-in form-control chrome (checkbox/radio borders, scrollbar
+   fallback, etc.) picks a dark-appropriate palette instead of assuming
+   light. Scoped to checkbox/radio only, not every input -- text/date/etc.
+   inputs already have their own explicit `.input` class styling
+   elsewhere and must stay unaffected. */
+:root {
+  color-scheme: dark;
+}
+
+/* The same reasoning in reverse: tell the browser this page is light so its
+   own form-control chrome, scrollbar fallback and unchecked checkbox stop
+   assuming dark. Without it a light theme gets dark native widgets. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--color-accent);
+}
+
+/* A text box with no class of its own got the browser's dark-scheme grey, which
+   reads as disabled (operator, 2026-11-05). `:where()` keeps this at zero
+   specificity, so every class that styles a box, or clears it to transparent
+   inside a wrapper, still wins. */
+:where(textarea, input:not([type]), input[type="text"], input[type="search"], input[type="email"],
+       input[type="password"], input[type="url"], input[type="tel"], input[type="number"],
+       input[type="date"], input[type="time"], input[type="datetime-local"], select) {
+  background-color: var(--color-field);
+  color: var(--color-text);
+  border: 1px solid var(--color-field-border);
+  border-radius: var(--radius-sm);
+}
+
+:where(textarea, input, select):where(:disabled, [readonly]) {
+  background-color: var(--color-surface-sunken);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+h1, h2, h3 { font-weight: 600; margin: 0 0 var(--space-4); }
+h1 { font-size: var(--font-size-2xl); font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+h2 { font-size: var(--font-size-lg); letter-spacing: -0.01em; }
+
+/* Links as the design draws them: accent, no underline until hover. Kept at element weight
+   (`:where`) so any component's own link style wins. Inside a sentence a faint underline stays,
+   because there colour alone would not set a link apart from the words around it. */
+a { color: var(--color-accent); text-decoration: none; text-underline-offset: 0.18em; }
+a:where(:hover, :focus-visible) { text-decoration: underline; }
+:where(p, blockquote) a { text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+
+.text-muted { color: var(--color-text-muted); }
+.mono { font-family: var(--font-mono); }
+/* Text kept as it was written (a laid-out sample, a step's detail): wrapped, never a wide line. */
+.text-preformatted { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

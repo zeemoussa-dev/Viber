@@ -1,0 +1,17 @@
+/* Viber's own additions to the vendored second_brain styles. Kept small: layout helpers only. */
+.viber-grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); margin-top: var(--space-4); }
+.viber-stack { display: flex; flex-direction: column; gap: var(--space-4); }
+.viber-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.viber-handoff { margin: 0; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); white-space: pre-wrap; }
+.viber-handoff:last-child { border-bottom: 0; }
+.viber-handoff-meta { color: var(--color-text-faint); font-size: var(--font-size-xs); }
+.viber-kv { display: grid; grid-template-columns: 9rem 1fr; gap: var(--space-2) var(--space-4); margin: 0 0 var(--space-4); }
+.viber-kv dt { color: var(--color-text-muted); }
+.viber-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.viber-mono { font-family: var(--font-mono); font-size: var(--font-size-sm); }
+.viber-token { display: flex; gap: var(--space-2); max-width: 32rem; }
+.viber-token input, .viber-search input { flex: 1; }
+.viber-section-gap { margin-top: var(--space-6); }
+.viber-review-item { padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
+.viber-review-item:last-child { border-bottom: 0; }
+.viber-review-item p { margin: var(--space-1) 0 var(--space-2); }

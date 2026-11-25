@@ -22,6 +22,24 @@ Send `X-Viber-Actor: <name>` on writes so the audit log names who did it.
   `source` + `source_ref` or by key; `?dry_run=true` writes nothing), generated views (`changelog`, `bugs`).
 - Not built yet: streams/claims/locks, MCP server, hooks, dashboard, pgvector recall.
 
+## Dashboard (v0.5)
+
+Served by the API container at **http://localhost:8088/dashboard/** (the root redirects there). A React 19 +
+Vite + TypeScript single-page app in `dashboard/`, built in a Docker stage and copied into the API image, so
+there is still one container to deploy. Screens: Overview (stat tiles, active sessions, latest handoffs, recent
+changes), Sessions (history, forks, files, handoffs), Review queue (accept or dismiss proposed rules and
+decisions, flagged items), Work (bugs and tasks with filters and detail), Map (components, links, problems),
+Memory (recall search, rules, facts), Projects.
+
+- The look is second_brain's: its CSS (`dashboard/src/styles`), fonts and self-contained components
+  (`dashboard/src/ui`) are vendored, see `dashboard/NOTICE.md`. Viber has its own shell and pages on top.
+- If `VIBER_TOKEN` is set the dashboard asks for it once and keeps it in the browser.
+- `index.html` is served `no-cache` and hashed assets `immutable`, so a redeploy shows up on the next load.
+- Develop it with hot reload: `cd dashboard; npm install; npm run dev` (proxies `/v1` to the API on :8088).
+- Dashboard read models: `GET .../overview`, `.../review`, `.../sessions/history`, `.../sessions/{tag}/detail`,
+  `.../components/summary`, `.../memory/facts`, `.../changes`; review actions: `POST .../decisions/{key}/accept|reject`,
+  `.../memory/rules/{id}/accept|retire`.
+
 ## Sessions (v0.4): what makes Claude sessions faster
 
 The loop: a hook registers each session and injects a small **context pack**; Claude uses `viber_*` tools

@@ -1,0 +1,110 @@
+/* Shared charts (components/charts.tsx). The eight series colours are the dataviz
+   reference palette, validated for colour-blind separation in this order, with its
+   own steps for each theme; failure uses the app's danger colour, never a series. */
+:root {
+  --chart-1: #3987e5; --chart-2: #d95926; --chart-3: #199e70; --chart-4: #c98500;
+  --chart-5: #d55181; --chart-6: #008300; --chart-7: #9085e9; --chart-8: #e66767;
+  --chart-grid: color-mix(in srgb, var(--color-text) 10%, transparent);
+  --chart-track: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+
+:root[data-theme="light"] {
+  --chart-1: #2a78d6; --chart-2: #eb6834; --chart-3: #1baf7a; --chart-4: #eda100;
+  --chart-5: #e87ba4; --chart-6: #008300; --chart-7: #6250d6; --chart-8: #e34948;
+}
+
+.chart { margin: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+
+.chart-legend {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+.chart-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
+.chart-swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.chart-swatch.is-failed { background: var(--color-danger); }
+.chart-legend-value { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* One whole, split into parts. 2px gaps keep neighbouring parts apart. */
+.chart-stack { display: flex; gap: 2px; height: 34px; border-radius: 6px; overflow: hidden; }
+.chart-stack-part { display: grid; place-items: center; min-width: 3px; }
+.chart-stack-text { color: #fff; font-size: var(--font-size-xs); font-weight: 600; text-shadow: 0 1px 2px rgb(0 0 0 / 35%); }
+
+/* Ranked rows: name, bar, value. */
+.chart-hbars { display: flex; flex-direction: column; gap: var(--space-2); }
+.chart-hbar {
+  display: grid; grid-template-columns: minmax(10rem, 22rem) 1fr minmax(6rem, auto);
+  align-items: center; gap: var(--space-3); font-size: var(--font-size-sm);
+}
+.chart-hbar-label { display: flex; flex-direction: column; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chart-hbar-sub { font-size: var(--font-size-xs); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; }
+.chart-hbar-track { position: relative; height: 14px; background: var(--chart-track); border-radius: 4px; }
+.chart-hbar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; }
+.chart-hbar-fill.is-failed { background: var(--color-danger); }
+/* StackedBars: one bar per thing, its parts side by side with a hairline between them. */
+.chart-hbar-stack { position: absolute; left: 0; top: 0; bottom: 0; display: flex; gap: 2px; border-radius: 4px; overflow: hidden; }
+.chart-hbar-part { min-width: 2px; height: 100%; }
+.chart-hbar-value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.chart-range-usual { background: var(--chart-1); }
+.chart-range-slow { background: color-mix(in srgb, var(--chart-1) 35%, transparent); }
+
+@media (max-width: 700px) {
+  .chart-hbar { grid-template-columns: 1fr auto; }
+  .chart-hbar-track { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* Counts over time. */
+.chart-columns { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2); }
+.chart-axis-y {
+  display: flex; flex-direction: column; justify-content: space-between;
+  font-size: var(--font-size-xs); color: var(--color-text-muted); text-align: right;
+  padding-bottom: 20px; font-variant-numeric: tabular-nums; min-width: 2ch;
+}
+.chart-axis-y span { transform: translateY(-50%); }
+.chart-axis-y span:first-child { transform: none; }
+.chart-axis-y span:last-child { transform: translateY(0); }
+.chart-plot { position: relative; padding-bottom: 20px; }
+.chart-grid { position: absolute; left: 0; right: 0; height: 1px; background: var(--chart-grid); margin-bottom: 20px; }
+.chart-plot-columns { position: absolute; inset: 0 0 0 0; display: flex; gap: 2px; align-items: stretch; }
+.chart-column { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chart-column-stack { flex: 1; display: flex; flex-direction: column-reverse; gap: 2px; }
+.chart-column-part { border-radius: 3px 3px 0 0; min-height: 2px; }
+.chart-column-part.is-failed { background: var(--color-danger); }
+.chart-column:hover .chart-column-part { filter: brightness(1.15); }
+.chart-column-label {
+  height: 20px; line-height: 20px; font-size: var(--font-size-xs); color: var(--color-text-muted);
+  text-align: center; white-space: nowrap; overflow: visible;
+}
+.chart-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); font-size: var(--font-size-sm); }
+
+/* A trace's timeline: a time axis over the step bars. */
+.chart-time-axis { position: relative; height: 18px; font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.chart-time-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chart-time-axis span:first-child { transform: none; }
+.chart-time-axis span:last-child { transform: translateX(-100%); }
+
+/* How far one thing is towards its whole (ProgressBar, framework API 14.1). */
+.progress { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.progress-head { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--font-size-sm); }
+.progress-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress-value { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.progress-track { position: relative; height: 10px; background: var(--chart-track); border-radius: 999px; overflow: hidden; }
+.progress-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; transition: width 0.3s ease; }
+
+/* Headline figures (StatTiles, framework API 14.1): compact, as many to a row as fit. */
+.stat-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr)); gap: var(--space-3); }
+.stat-tile {
+  display: flex; flex-direction: column; gap: var(--space-1); min-width: 0;
+  padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-sm);
+}
+.stat-tile-label { font-size: var(--font-size-xs); font-weight: 600; color: var(--color-text-muted); }
+.stat-tile-value { font-size: var(--font-size-2xl); font-variant-numeric: tabular-nums; line-height: 1.2; overflow-wrap: anywhere; }
+.stat-tile-value.is-warning { color: var(--color-warning); }
+.stat-tile-value.is-danger { color: var(--color-danger); }
+.stat-tile-value.is-success { color: var(--color-success); }
+.stat-tile-note { font-size: var(--font-size-xs); color: var(--color-text-faint); }
+
+/* A state tone is striped as well as coloured, so a warning part never reads as a series
+   whose colour happens to be near it (the dark theme's warning sits close to --chart-2). */
+.is-toned { background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / 24%) 0 5px, transparent 5px 10px); }

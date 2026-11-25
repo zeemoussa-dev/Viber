@@ -1,4 +1,4 @@
-services:
+﻿services:
   db:
     image: pgvector/pgvector:pg17
     environment:
@@ -16,7 +16,9 @@ services:
       retries: 20
 
   api:
-    build: .
+    build:
+      context: .
+      target: with-dashboard
     environment:
       VIBER_DATABASE_URL: postgresql://viber:viber_dev@db:5432/viber
       VIBER_TOKEN: ""
@@ -28,7 +30,9 @@ services:
     command: uvicorn viber.main:app --host 0.0.0.0 --port 8088
 
   tests:
-    build: .
+    build:
+      context: .
+      target: app
     profiles: ["tests"]
     environment:
       VIBER_DATABASE_URL: postgresql://viber:viber_dev@db:5432/viber_test
@@ -42,3 +46,4 @@ services:
 
 volumes:
   viber_pgdata:
+

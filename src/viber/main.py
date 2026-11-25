@@ -3,7 +3,13 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
-from . import __version__, links, map_api, mcp_api, service, session_api
+import os
+from pathlib import Path
+
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
+from . import __version__, dashboard_api, links, map_api, mcp_api, service, session_api
 from .security import actor_name, require_token
 from .db import DryRunRollback, close_pool, insert_idempotent, record_audit, run_migrations, transaction
 from .models import (ComponentIn, ChangeIn, DecisionIn, EpisodeIn, FactIn, ImportBatch, ItemIn,
@@ -23,6 +29,27 @@ app = FastAPI(title="Viber", version=__version__, lifespan=lifespan)
 app.include_router(map_api.router)
 app.include_router(session_api.router)
 app.include_router(mcp_api.router)
+app.include_router(dashboard_api.router)
+
+class DashboardFiles(StaticFiles):
+    """Hashed assets never change, so they cache forever; everything else (index.html) revalidates, so a
+    redeploy shows up on the next load instead of serving a page that points at assets that no longer exist."""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        immutable = path.startswith("assets/")
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable" if immutable else "no-cache"
+        return response
+
+
+DASHBOARD_DIRECTORY = Path(os.environ.get("VIBER_DASHBOARD_DIR", "/app/dashboard_dist"))
+if DASHBOARD_DIRECTORY.is_dir():
+    # The dashboard is a static single-page app that talks to this same API; it carries no secrets.
+    app.mount("/dashboard", DashboardFiles(directory=DASHBOARD_DIRECTORY, html=True), name="dashboard")
+
+    @app.get("/", include_in_schema=False)
+    def root_redirect():
+        return RedirectResponse("/dashboard/")
 protected = [Depends(require_token)]
 
 

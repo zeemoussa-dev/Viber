@@ -1,0 +1,285 @@
+/* Visible choices, in place of native dropdowns (ADR-078). Built from theme tokens
+   only, so both themes and every accent follow without their own rules. */
+.choice-chips,
+.choice-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.choice-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.choice-chip,
+.choice-card,
+.choice-list-option {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.choice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: var(--space-1) var(--space-3);
+  min-height: 2.25rem;
+  border-radius: var(--radius-md);
+}
+
+.choice-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+}
+
+.choice-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.choice-label { font-weight: 600; word-break: break-word; }
+.choice-hint { font-size: var(--font-size-sm); opacity: 0.8; word-break: break-word; }
+
+.choice-chip:hover:not(:disabled),
+.choice-card:hover:not(:disabled),
+.choice-list-option:hover:not(:disabled) { border-color: var(--color-accent); }
+
+.choice-chip:focus-visible,
+.choice-card:focus-visible,
+.choice-list-option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.choice-chip.is-chosen,
+.choice-card.is-chosen,
+.choice-list-option.is-chosen {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.choice-chip:disabled,
+.choice-card:disabled,
+.choice-list-option:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.choice-list { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.choice-list-chosen { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+
+.choice-list-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.choice-list-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.choice-list-option.is-highlighted:not(.is-chosen) { border-color: var(--color-accent); }
+
+/* DropdownPicker: a closed field that opens a searchable list (2026-11-15). The trigger
+   looks like an input so a form reads as one column of fields. */
+.dropdown-picker { min-width: 0; max-width: 100%; }
+
+.dropdown-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-field-border);
+  background: var(--color-field);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-base);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--motion-fast);
+}
+
+.dropdown-picker-trigger.is-empty .dropdown-picker-summary { color: var(--color-text-muted); }
+.dropdown-picker-trigger:hover:not(:disabled) { border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-field-border)); }
+.dropdown-picker-trigger:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.dropdown-picker-trigger[aria-expanded="true"] { border-color: var(--color-accent); }
+.dropdown-picker-trigger:disabled { background: var(--color-surface-sunken); color: var(--color-text-muted); cursor: not-allowed; }
+.dropdown-picker-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dropdown-picker-caret { flex-shrink: 0; color: var(--color-text-muted); }
+
+/* Above a dialog's overlay (70), since a picker inside a drawer opens over it. */
+.dropdown-picker-panel {
+  position: fixed;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-base);
+}
+
+.dropdown-picker-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+.dropdown-picker-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dropdown-picker-group { display: flex; flex-direction: column; gap: 2px; }
+.dropdown-picker-group + .dropdown-picker-group { margin-top: var(--space-2); }
+
+.dropdown-picker-group-name {
+  margin: 0;
+  padding: var(--space-1) var(--space-3) 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.dropdown-picker-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dropdown-picker-option.is-highlighted { background: var(--color-surface-raised); border-color: var(--color-border); }
+.dropdown-picker-option[aria-selected="true"] .dropdown-picker-label { font-weight: 600; }
+.dropdown-picker-option:disabled { opacity: 0.5; cursor: not-allowed; }
+.dropdown-picker-label { word-break: break-word; }
+
+.dropdown-picker-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 2px;
+  color: var(--color-accent);
+}
+
+.dropdown-picker-mark .icon { font-size: 1.125rem; }
+
+.dropdown-picker-mark.is-box {
+  border: 1px solid var(--color-field-border);
+  border-radius: 4px;
+  background: var(--color-field);
+}
+
+.dropdown-picker-option[aria-selected="true"] .dropdown-picker-mark.is-box {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.dropdown-picker-mark.is-box .icon { font-size: 0.875rem; }
+.dropdown-picker-empty { margin: 0; padding: var(--space-2) var(--space-3); color: var(--color-text-muted); }
+
+/* Tight spots. Flex rows shrink a choice group to its content, and an inline row
+   cannot spare a full-height list. */
+.kv-row .choice-chips { justify-content: flex-end; }
+
+.wf-wired,
+.entry-point-declare { flex-wrap: wrap; }
+
+.wf-wired > .choice-chips,
+.wf-wired > .choice-list,
+.wf-input-add > .choice-list,
+.entry-point-declare > .choice-chips,
+.entry-point-declare > .choice-list,
+.item-row-meta > .choice-list,
+.wf-wired > .dropdown-picker,
+.wf-input-add > .dropdown-picker,
+.entry-point-declare > .dropdown-picker,
+.item-row-meta > .dropdown-picker { flex: 1 1 100%; }
+
+.browse-filter-row > .choice-list,
+.page-toolbar > .choice-list,
+.blueprint-section-picker > .choice-list { flex: 1 1 16rem; }
+
+.browse-filter-row > .dropdown-picker,
+.page-toolbar > .dropdown-picker,
+.blueprint-section-picker > .dropdown-picker { flex: 0 1 18rem; }
+
+.blueprint-section-picker { flex-wrap: wrap; }
+
+.wf-wired .choice-list-options,
+.browse-filter-row .choice-list-options,
+.page-toolbar .choice-list-options,
+.settings-table .choice-list-options { max-height: 8rem; }
+
+/* Channels (ADR-078) */
+.channel-qr {
+  display: block;
+  width: min(18rem, 100%);
+  aspect-ratio: 1;
+  margin: var(--space-3) 0;
+  padding: var(--space-2);
+  /* Scanners need dark on light, in the dark theme too. */
+  background: #fff;
+  border-radius: var(--radius-md);
+}
+
+.qr-code {
+  display: block;
+  width: min(14rem, 100%);
+  aspect-ratio: 1;
+  margin: var(--space-2) 0;
+  border-radius: var(--radius-md);
+  /* Scanners need dark on light, in the dark theme too. */
+  background: #fff;
+  color: #000;
+}
+
+/* Up to five actions: they wrap under the text rather than crush it at phone width. */
+.channel-row { flex-wrap: wrap; }
+.channel-row .item-row-main { flex: 1 1 14rem; }
+.channel-row .item-row-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.channel-steps { margin: var(--space-2) 0; padding-left: var(--space-5, 1.25rem); }
+.channel-steps li { margin-bottom: var(--space-1); }
+
+/* A step of adding a channel, under the list it adds to. */
+.channel-flow { margin-top: var(--space-4); }
+.channel-flow h3 { margin: 0 0 var(--space-3); font-size: var(--font-size-base); }
+.channel-flow .notice { margin: var(--space-3) 0 0; }
+
+/* Up to six actions in the last column: they wrap rather than widen the table. */
+.channel-table .row-actions { flex-wrap: wrap; }

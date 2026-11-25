@@ -1,0 +1,42 @@
+/* The shared page layout (`ADR-091`). Used through PageHeader and FormActions. */
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.page-header-text { flex: 1 1 18rem; min-width: 0; }
+.page-header-text h1 { margin: 0; }
+.page-header-text p { margin: var(--space-1) 0 0; max-width: 70ch; }
+
+.page-header-actions,
+.form-actions-main,
+.form-actions-destructive {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.form-actions-main { margin-left: auto; justify-content: flex-end; }
+
+/* One line per filter or secondary action, above the list it acts on. */
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
