@@ -190,9 +190,12 @@ def start_background_sync(interval_s: float = 20.0) -> None:
     """Keep vectors current without anyone asking. A failure is recorded and retried later, never raised."""
     def loop():
         while True:
+            busy = False
             try:
-                sync()
+                result = sync(256)
+                busy = result.get("embedded", 0) > 0 and "error" not in result  # a backlog: carry straight on
             except Exception:
                 pass
-            time.sleep(interval_s)
+            if not busy:
+                time.sleep(interval_s)
     threading.Thread(target=loop, name="viber-embedding-sync", daemon=True).start()
