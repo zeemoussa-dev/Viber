@@ -145,7 +145,8 @@ def get_item(project_key: str, item_key: str):
         ).fetchone()
         if not row:
             raise HTTPException(404, f"item '{item_key}' not found")
-        return {k: v for k, v in row.items() if k != "tsv"}
+        points = connection.execute("SELECT kind, seq, text FROM item_point WHERE item_id = %s ORDER BY kind, seq", (row["id"],)).fetchall()
+        return {**{k: v for k, v in row.items() if k != "tsv"}, "points": [p["text"] for p in points]}
 
 
 @app.patch("/v1/projects/{project_key}/items/{item_key}", dependencies=protected)

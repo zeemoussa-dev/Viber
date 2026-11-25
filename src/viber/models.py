@@ -100,8 +100,9 @@ class ReleaseIn(BaseModel):
 
 class ItemIn(BaseModel):
     kind: str
-    title: str
-    body: str = ""
+    title: str = Field(max_length=400)
+    body: str = Field("", max_length=500)  # a short summary; anything longer goes in `details`, stored one statement per row
+    details: str = ""
     key: str | None = None
     status: str = "Open"
     lane: str = "quick"
@@ -142,10 +143,11 @@ class DecisionIn(BaseModel):
 
 
 class ChangeIn(BaseModel):
-    summary: str
+    summary: str = Field(max_length=400)
     occurred_on: date
     kind: str = "change"
-    body: str = ""
+    body: str = Field("", max_length=500)  # short; anything longer goes in `details`, stored one statement per row
+    details: str = ""
     version: str | None = None
     commit_sha: str | None = None
     component_key: str | None = None

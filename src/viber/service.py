@@ -4,6 +4,7 @@ from datetime import date
 from fastapi import HTTPException
 
 from . import adr
+from .atoms import POINT_MAX, split_atoms
 from .db import insert_idempotent, record_audit, to_database_value
 from .models import ChangeIn, DecisionIn, EpisodeIn, FactIn, ItemIn, RuleIn
 
@@ -69,6 +70,8 @@ def create_item(connection, project: dict, payload: ItemIn, actor: str = DEFAULT
                 "INSERT INTO item_component (item_id, component_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                 (item_id, component_id(connection, project["id"], component_key)),
             )
+        for seq, atom in enumerate(split_atoms(payload.details, POINT_MAX), start=1):
+            connection.execute("INSERT INTO item_point (item_id, kind, seq, text) VALUES (%s,'detail',%s,%s)", (item_id, seq, atom))
         record_audit(connection, actor, "create", "item", item_id, project["id"], {"key": key, "kind": payload.kind})
     return {"id": item_id, "key": key}, created
 
@@ -97,11 +100,13 @@ def create_decision(connection, project: dict, payload: DecisionIn, actor: str =
 
 
 def create_change(connection, project: dict, payload: ChangeIn, actor: str = DEFAULT_ACTOR) -> tuple[dict, bool]:
-    values = payload.model_dump(exclude={"component_key"})
+    values = payload.model_dump(exclude={"component_key", "details"})
     values["project_id"] = project["id"]
     values["component_id"] = component_id(connection, project["id"], payload.component_key)
     change_id, created = insert_idempotent(connection, "change", values)
     if created:
+        for seq, atom in enumerate(split_atoms(payload.details, POINT_MAX), start=1):
+            connection.execute("INSERT INTO change_point (change_id, seq, text) VALUES (%s,%s,%s)", (change_id, seq, atom))
         record_audit(connection, actor, "create", "change", change_id, project["id"])
     return {"id": change_id}, created
 

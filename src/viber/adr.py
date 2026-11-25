@@ -12,7 +12,10 @@ POINT_KINDS = {"context": "context", "decision": "decision", "alternatives": "al
 
 
 def default_prefix(connection, project: dict) -> str:
-    """The prefix most decision keys use (ADR-v3. for sbos, ADR- when a project has none yet)."""
+    """The project's own ADR prefix if it sets one (settings.adr_prefix), else the prefix most decision keys use."""
+    configured = (project.get("settings") or {}).get("adr_prefix")
+    if configured:
+        return configured
     keys = [row["key"] for row in connection.execute("SELECT key FROM decision WHERE project_id = %s", (project["id"],)).fetchall()]
     prefixes = Counter(m["prefix"] for m in (KEY.match(k) for k in keys) if m)
     return prefixes.most_common(1)[0][0] if prefixes else "ADR-"

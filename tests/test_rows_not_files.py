@@ -33,6 +33,27 @@ def test_next_adr_follows_the_projects_own_numbering_and_never_repeats(client, p
     assert "ADR-v3.018" in first and "ADR-v3.019" in second
 
 
+def test_a_project_can_set_its_own_adr_prefix(client, project_key):
+    from viber.db import transaction
+    decide(client, project_key, "ADR-050")
+    decide(client, project_key, "ADR-v3.003")
+    with transaction() as connection:
+        connection.execute("UPDATE project SET settings = settings || '{\"adr_prefix\": \"ADR-v3.\"}' WHERE key = %s", (project_key,))
+    assert "ADR-v3.004" in call(client, project_key, "viber_next_adr")
+
+
+def test_long_item_and_change_text_becomes_rows(client, project_key):
+    base = f"/v1/projects/{project_key}"
+    long = "First thing happened. " * 40 + "\n- Second bullet.\n- Third bullet."
+    assert client.post(f"{base}/items", json={"kind": "bug", "title": "T", "body": "x" * 600}).status_code == 422
+    made = client.post(f"{base}/items", json={"kind": "bug", "title": "Long bug", "details": long}).json()
+    item = client.get(f"{base}/items/{made['key']}").json()
+    assert item["body"] == "" and len(item["points"]) >= 3 and all(len(p) <= 500 for p in item["points"])
+    assert item["points"][-1] == "Third bullet."
+    change = client.post(f"{base}/changes", json={"summary": "Moved things", "occurred_on": "2026-11-26", "details": "- one\n- two"})
+    assert change.status_code in (200, 201)
+
+
 def test_get_adr_by_key_or_number_returns_statements_as_rows(client, project_key):
     decide(client, project_key, "ADR-v3.017", title="Freeze scope", context="Too much was in flight.",
            decision="- No new scope.\n- Port from v2 first.", consequences="Fewer surprises.")

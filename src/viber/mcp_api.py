@@ -137,7 +137,7 @@ def run_bug(connection, project, arguments):
     body = "\n".join(f"{label}: {arguments[name]}" for name, label in
                      (("repro", "Repro"), ("expected", "Expected"), ("actual", "Actual")) if arguments.get(name))
     item, _ = service.create_item(connection, project, ItemIn(
-        kind="bug", title=arguments["title"], body=body, area=arguments.get("area"), severity=arguments.get("severity"),
+        kind="bug", title=arguments["title"][:400], body="", details=body, area=arguments.get("area"), severity=arguments.get("severity"),
         found_on=date.today(), lane="standard",
         component_keys=[arguments["component"]] if arguments.get("component") else []), ACTOR)
     return f"Logged {item['key']} (Open)."
