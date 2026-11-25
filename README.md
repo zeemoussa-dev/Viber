@@ -38,6 +38,10 @@ component, wires the hooks (`hooks/install.ps1`), writes `.mcp.json`, a short `C
 markdown pipeline scaffold, kept at `docs/legacy/project-scaffold-v1.md`. Stories, tasks and sprints are not
 replaced yet (the full lane in `SPEC.md` is unbuilt).
 
+`PROMPTS.md` is the set of ready-to-paste session prompts built on it: mirror import for `second_brain`,
+`sb-orchestration` and other repos, switch-over for standalone repos, re-sync, an independent audit, and fork
+kickoff and closeout prompts for day-to-day work.
+
 ## Dashboard (v0.5)
 
 Served by the API container at **http://localhost:8088/dashboard/** (the root redirects there). A React 19 +

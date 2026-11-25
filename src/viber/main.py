@@ -173,10 +173,21 @@ def list_decisions(project_key: str):
     with transaction() as connection:
         project = service.project_row(connection, project_key)
         return connection.execute(
-            "SELECT key, title, status, decided_on, supersedes, superseded_by FROM decision "
+            "SELECT key, title, status, decided_on, supersedes, superseded_by, source FROM decision "
             "WHERE project_id = %s ORDER BY key",
             (project["id"],),
         ).fetchall()
+
+
+@app.get("/v1/projects/{project_key}/decisions/{decision_key}", dependencies=protected)
+def get_decision(project_key: str, decision_key: str):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        row = connection.execute(
+            "SELECT * FROM decision WHERE project_id = %s AND key = %s", (project["id"], decision_key)).fetchone()
+        if not row:
+            raise HTTPException(404, f"decision '{decision_key}' not found")
+        return {k: v for k, v in row.items() if k not in ("tsv", "id", "project_id")}
 
 
 @app.post("/v1/projects/{project_key}/changes", status_code=201, dependencies=protected)

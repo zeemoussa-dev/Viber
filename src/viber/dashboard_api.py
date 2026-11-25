@@ -134,7 +134,7 @@ def list_changes(project_key: str, limit: int = Query(100, le=500)):
     with transaction() as connection:
         project = service.project_row(connection, project_key)
         return connection.execute(
-            "SELECT c.occurred_on, c.kind, c.summary, c.version, k.key AS component FROM change c "
+            "SELECT c.occurred_on, c.kind, c.summary, c.body, c.version, c.source, c.source_ref, k.key AS component FROM change c "
             "LEFT JOIN component k ON k.id = c.component_id WHERE c.project_id=%s "
             "ORDER BY c.occurred_on DESC, c.created_at DESC LIMIT %s", (project["id"], limit)).fetchall()
 
