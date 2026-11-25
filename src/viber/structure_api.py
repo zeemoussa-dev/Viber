@@ -144,6 +144,18 @@ def add_plan_members(project_key: str, key: str, payload: PlanMembersIn, actor: 
         return refs.add_to_plan(connection, project, key, [(m["type"], m["key"]) for m in payload.members], actor)
 
 
+class PlanUpdate(BaseModel):
+    title: str | None = Field(None, max_length=200)
+    goal: str | None = Field(None, max_length=300)
+
+
+@router.patch("/plans/{key}")
+def update_plan(project_key: str, key: str, payload: PlanUpdate, actor: str = Depends(actor_name)):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return refs.update_plan(connection, project, key, payload.title, payload.goal, actor)
+
+
 @router.post("/plans/{key}/status")
 def set_plan_status(project_key: str, key: str, status: str, actor: str = Depends(actor_name)):
     with transaction() as connection:

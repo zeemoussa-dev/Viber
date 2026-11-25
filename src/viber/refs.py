@@ -137,6 +137,16 @@ def add_to_plan(connection, project: dict, plan_key: str, members: list[tuple[st
     return {"plan": plan["key"], "added": added}
 
 
+def update_plan(connection, project: dict, plan_key: str, title: str | None, goal: str | None, actor: str = "api") -> dict:
+    plan = resolve(connection, project, "plan", plan_key)
+    if (title is not None and not 0 < len(title) <= 200) or (goal is not None and len(goal) > 300):
+        raise HTTPException(422, "a plan has a title of 1 to 200 characters and a one-line goal of at most 300")
+    connection.execute("UPDATE plan SET title = COALESCE(%s, title), goal = COALESCE(%s, goal), updated_at = now() "
+                       "WHERE project_id = %s AND key = %s", (title, goal, project["id"], plan["key"]))
+    record_audit(connection, actor, "update", "plan", plan["key"], project["id"])
+    return {"key": plan["key"]}
+
+
 def set_plan_status(connection, project: dict, plan_key: str, status: str, actor: str = "api") -> dict:
     if status not in PLAN_STATUSES:
         raise HTTPException(422, f"status is one of {', '.join(PLAN_STATUSES)}")
