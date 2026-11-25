@@ -9,8 +9,8 @@ from pathlib import Path
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import (__version__, dashboard_api, embeddings, links, map_api, mcp_api, memory_api, prompts_api, service, session_api,
-               structure_api, tokens_api)
+from . import (__version__, backup, backup_api, dashboard_api, embeddings, links, map_api, mcp_api, memory_api, prompts_api, service,
+               session_api, structure_api, tokens_api)
 from .security import actor_name, require_token, visible_projects
 from .db import DryRunRollback, close_pool, insert_idempotent, record_audit, run_migrations, transaction
 from .models import (ComponentIn, ChangeIn, DecisionIn, EpisodeIn, FactIn, ImportBatch, ItemIn,
@@ -22,6 +22,8 @@ async def lifespan(_: FastAPI):
     run_migrations()
     if embeddings.enabled() and os.environ.get("VIBER_EMBED_AUTOSYNC", "1") != "0":
         embeddings.start_background_sync()
+    if backup.every_hours() > 0 and os.environ.get("VIBER_BACKUP_AUTOSTART", "1") != "0":
+        backup.start_scheduler()
     yield
     close_pool()
 
@@ -35,6 +37,7 @@ app.include_router(structure_api.router)
 app.include_router(memory_api.router)
 app.include_router(tokens_api.router)
 app.include_router(prompts_api.router)
+app.include_router(backup_api.router)
 app.include_router(mcp_api.router)
 app.include_router(dashboard_api.router)
 

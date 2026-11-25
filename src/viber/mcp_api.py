@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from . import __version__, adr, consolidation, graph, prompts, refs, service, sessions, specs, views
+from . import __version__, adr, backup, consolidation, graph, prompts, refs, service, sessions, specs, views
 from .atoms import FACT_MAX, RULE_MAX
 from .db import record_audit, transaction
 from .models import ChangeIn, DecisionIn, FactIn, HandoffIn, ItemIn, RuleIn
@@ -86,6 +86,7 @@ TOOLS = [
          {"thing": {"type": "string", "description": "type:key"}, "ended": {"type": "boolean"}}, ["thing"]),
     tool("viber_retire", "Mark something obsolete without deleting it (decision, spec, fact or plan). Its applies_to and about links end.",
          {"thing": {"type": "string", "description": "type:key"}, "reason": {"type": "string"}}, ["thing"]),
+    tool("viber_backup_status", "Is Viber's own database backed up and checked? The last good backup, its age and size, and any problem.", {}, []),
     tool("viber_item", "Create a piece of work: a story, task, chore, spike, idea or bug, with details, optionally in a plan and under a parent item. "
                        "Use gate 'flagged' with a reason when a human must decide.",
          {"kind": {"type": "string", "enum": ["story", "task", "chore", "spike", "idea", "bug"]}, "title": {"type": "string"},
@@ -286,6 +287,20 @@ def run_stale(connection, project, arguments):
     return "\n".join(f"{r['type']}:{r['key']} {r['relation']} {r['component']} ({r['lifecycle']})" for r in rows) or "Nothing is tied to a deprecated or archived component."
 
 
+def run_backup_status(connection, project, arguments):
+    h = backup.health()
+    if not h["last_good"]:
+        return "There is NO checked backup of Viber's database. Ask the operator to make one (System page > Back up now)."
+    last = h["runs"][0]
+    lines = [f"Last good backup {h['last_good_age_hours']} h ago, {round(h['last_good']['bytes'] / 1e6, 1)} MB, checked by a restore. {h['good_backups']} kept in {h['folder']}.",
+             f"Schedule: every {h['schedule_hours']} h." if h["schedule_hours"] > 0 else "No schedule: backups run only when asked."]
+    if not h["healthy"]:
+        lines.append("PROBLEM: the backups are not healthy" + (f" (missing files: {', '.join(h['files_missing'])})" if h["files_missing"] else " (the last good one is older than the schedule allows)") + ".")
+    if last["status"] == "failed":
+        lines.append(f"The latest attempt failed: {last['error'] or last['verify_note']}")
+    return "\n".join(lines)
+
+
 def run_item(connection, project, arguments):
     kind = arguments["kind"]
     item, created = service.create_item(connection, project, ItemIn(
@@ -373,7 +388,7 @@ def run_duplicates(connection, project, arguments):
     return "\n".join(f"{r['similarity']} older {r['older']}: {r['older_text'][:80]} | newer {r['newer']}: {r['newer_text'][:80]}" for r in rows) or "No near-duplicate facts."
 
 
-RUNNERS = {"viber_item": run_item, "viber_item_status": run_item_status, "viber_view": run_view, "viber_prompt": run_prompt, "viber_episodes_pending": run_episodes_pending, "viber_consolidated": run_consolidated,
+RUNNERS = {"viber_backup_status": run_backup_status, "viber_item": run_item, "viber_item_status": run_item_status, "viber_view": run_view, "viber_prompt": run_prompt, "viber_episodes_pending": run_episodes_pending, "viber_consolidated": run_consolidated,
            "viber_component_digest": run_component_digest, "viber_reflection": run_reflection, "viber_consolidate": run_consolidate, "viber_reflect": run_reflect, "viber_duplicates": run_duplicates, "viber_plan": run_plan, "viber_plan_add": run_plan_add, "viber_ref": run_ref, "viber_refs": run_refs,
            "viber_retire": run_retire, "viber_stale": run_stale, "viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
            "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions,

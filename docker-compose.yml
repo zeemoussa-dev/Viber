@@ -49,6 +49,11 @@ services:
       VIBER_EMBED_URL: ${VIBER_EMBED_URL:-http://embeddings:11434}
       VIBER_EMBED_MODEL: ${VIBER_EMBED_MODEL:-bge-m3}
       VIBER_EMBED_KEY: ${VIBER_EMBED_KEY:-}
+      VIBER_BACKUP_DIR: /backups
+      VIBER_BACKUP_EVERY_HOURS: ${VIBER_BACKUP_EVERY_HOURS:-24}
+    volumes:
+      # Backups land in ./backups on the host, so they outlive the Docker volumes and can be copied anywhere.
+      - ${VIBER_BACKUP_HOST_DIR:-./backups}:/backups
     depends_on:
       db:
         condition: service_healthy
@@ -72,6 +77,8 @@ services:
       VIBER_ADMIN_DATABASE_URL: postgresql://viber:${POSTGRES_PASSWORD:-viber_dev}@db:5432/viber
       VIBER_EMBED_PROVIDER: none
       VIBER_EMBED_AUTOSYNC: "0"
+      VIBER_BACKUP_DIR: /tmp/viber-test-backups
+      VIBER_BACKUP_EVERY_HOURS: "0"
     depends_on:
       db:
         condition: service_healthy

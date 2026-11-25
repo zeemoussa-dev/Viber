@@ -22,10 +22,11 @@ from fastapi import Header, HTTPException, Request
 RANK = {"read": 0, "write": 1, "review": 2, "admin": 3}
 # MCP tools that only read. Every other tool records something.
 READ_TOOLS = {"viber_recall", "viber_context", "viber_sessions", "viber_get_adr", "viber_spec_get", "viber_graph", "viber_refs",
-              "viber_stale", "viber_duplicates", "viber_episodes_pending", "viber_component_digest", "viber_prompt", "viber_view"}
+              "viber_stale", "viber_duplicates", "viber_episodes_pending", "viber_component_digest", "viber_prompt", "viber_view", "viber_backup_status"}
 REVIEW_TOOLS = {"viber_retire"}
 REVIEW_PATHS = re.compile(r"/(accept|reject|retire|supersede)(/|$)|/memory/rules/[^/]+/(accept|retire)$")
-ADMIN_PATHS = re.compile(r"^/v1/(tokens(/|$)|projects$)")
+ADMIN_PATHS = re.compile(r"^/v1/(tokens(/|$)|projects$|backups(/|$))")
+ADMIN_ALWAYS = re.compile(r"^/v1/(tokens(/|$)|backups/\d+/download$)")  # reading these needs admin too
 PROJECT_PATH = re.compile(r"^/v1/projects/([^/]+)")
 
 
@@ -47,7 +48,7 @@ async def _inspect(request: Request) -> tuple[str, str | None]:
     """The role this request needs and the project it is about (None when it is about none)."""
     path, method = request.url.path, request.method
     project = (PROJECT_PATH.match(path) or [None, None])[1]
-    if ADMIN_PATHS.match(path) and (method != "GET" or path.startswith("/v1/tokens")):
+    if ADMIN_PATHS.match(path) and (method != "GET" or ADMIN_ALWAYS.match(path)):
         return "admin", project
     if path == "/mcp" and method == "POST":
         try:

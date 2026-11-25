@@ -120,6 +120,16 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   with `{project}` and `{component}` filled in, `PUT .../prompts/{key}` saves one (one statement per line),
   `POST .../prompts/seed` adds the default set (start, resume, component, bug, decide, plan, consolidate, finish). The MCP
   tool `viber_prompt` reads them; the dashboard's Prompts page copies one to paste as a session's first message.
+- **Backups (v1.0):** a `pg_dump` of Viber's own database (without the rebuildable vectors) every `VIBER_BACKUP_EVERY_HOURS`
+  (default 24; a machine that was off catches up at once), into `./backups` on the host, so it outlives the Docker volumes.
+  A backup is trusted only after a restore check: it is restored into a scratch database and each table's row count must fall
+  between the live counts just before and just after the dump; its checksum is rechecked on every later check, so a damaged
+  or missing file is caught. Retention keeps the newest of each of the last 7 days, 5 weeks and 6 months, and never the
+  last good one. The dashboard's System page shows the status and does Back up now, Check again and Download (admin only);
+  `GET /v1/backups` has the same, and the MCP tool `viber_backup_status` lets any session see whether memory is backed up.
+  To restore: `.\tools\restore-backup.ps1 -File backups\<file>.dump` restores into a separate database (safe); add
+  `-Database viber -Yes` to replace the live one. The dump holds every project's data and the token hashes: keep copies of
+  the `backups` folder somewhere safe, and treat them as secret.
 - **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,
