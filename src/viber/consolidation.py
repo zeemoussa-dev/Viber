@@ -104,7 +104,65 @@ def supersede(connection, project: dict, old_id: str, new_id: str, actor: str) -
     return {"ended": old_id, "superseded_by": new_id}
 
 
-# ---- model-based --------------------------------------------------------------------------------------
+# ---- done by the calling session (Claude Code is the model) -------------------------------------------
+# The session reads what is new, decides what is durable, writes it with viber_remember, then marks the batch done.
+# No second model is needed; the propose()/reflect() below are only for a setup that has one.
+
+def pending_episodes(connection, project: dict, limit: int = MAX_EPISODES) -> dict:
+    """The episodes since the last consolidation, for the session to read and turn into facts and proposed rules."""
+    state = _state(connection, project)
+    rows = connection.execute(
+        "SELECT id::text AS id, kind, content, occurred_at FROM episode WHERE project_id = %s AND (%s::timestamptz IS NULL OR occurred_at > %s) "
+        "ORDER BY occurred_at LIMIT %s", (project["id"], state["last_episode_at"], state["last_episode_at"], limit)).fetchall()
+    return {"episodes": rows, "since": state["last_episode_at"]}
+
+
+def mark_consolidated(connection, project: dict, through_episode_id: str, actor: str) -> dict:
+    """Move the watermark to the given episode, so the next batch starts after it."""
+    row = connection.execute("SELECT occurred_at FROM episode WHERE project_id = %s AND id::text = %s", (project["id"], through_episode_id)).fetchone()
+    if not row:
+        raise HTTPException(404, "no such episode")
+    _state(connection, project)
+    connection.execute("UPDATE consolidation_state SET last_episode_at = greatest(coalesce(last_episode_at, %s), %s), last_run_at = now() WHERE project_id = %s",
+                       (row["occurred_at"], row["occurred_at"], project["id"]))
+    record_audit(connection, actor, "consolidate", "project", project["key"], project["id"], {"through": through_episode_id})
+    return {"through": through_episode_id}
+
+
+def component_digest(connection, project: dict, component_key: str) -> dict:
+    """Everything recent about one component, for the session to write a current summary of."""
+    service.component_id(connection, project["id"], component_key)
+    return {
+        "changes": [r["summary"] for r in connection.execute(
+            "SELECT c.summary FROM change c JOIN component k ON k.id = c.component_id WHERE c.project_id = %s AND k.key = %s "
+            "ORDER BY c.occurred_on DESC LIMIT 15", (project["id"], component_key)).fetchall()],
+        "items": [f"{r['key']} [{r['status']}] {r['title']}" for r in connection.execute(
+            "SELECT i.key, i.title, i.status FROM item i JOIN item_component ic ON ic.item_id = i.id JOIN component k ON k.id = ic.component_id "
+            "WHERE i.project_id = %s AND k.key = %s ORDER BY i.created_at DESC LIMIT 15", (project["id"], component_key)).fetchall()],
+        "facts": [r["text"] for r in connection.execute(
+            "SELECT text FROM fact WHERE project_id = %s AND scope = %s AND valid_to IS NULL AND coalesce(subject,'') NOT LIKE 'reflection:%%' "
+            "ORDER BY created_at DESC LIMIT 10", (project["id"], f"component:{component_key}")).fetchall()],
+        "current_reflection": [r["text"] for r in connection.execute(
+            "SELECT text FROM fact WHERE project_id = %s AND subject = %s AND valid_to IS NULL", (project["id"], f"reflection:{component_key}")).fetchall()],
+    }
+
+
+def write_reflection(connection, project: dict, component_key: str, statements: list[str], actor: str) -> dict:
+    """Store the session's summary of a component; it replaces the previous one."""
+    service.component_id(connection, project["id"], component_key)
+    clean = [" ".join(str(s).split()) for s in statements][:5]
+    bad = [s for s in clean if not s or len(s) > FACT_MAX or _looks_secret(s)]
+    if bad or not clean:
+        raise HTTPException(422, f"give 1 to 5 statements of at most {FACT_MAX} characters each, with no secrets")
+    subject = f"reflection:{component_key}"
+    connection.execute("UPDATE fact SET valid_to = now() WHERE project_id = %s AND subject = %s AND valid_to IS NULL", (project["id"], subject))
+    for text in clean:
+        service.create_fact(connection, project, FactIn(text=text, subject=subject, scope=f"component:{component_key}", trust="agent",
+                                                         source="reflection", source_ref=hashlib.sha1((subject + text).encode()).hexdigest()[:20]), actor)
+    return {"component": component_key, "statements": len(clean)}
+
+
+# ---- model-based, only when a separate chat model is configured -----------------------------------------
 
 def _state(connection, project: dict) -> dict:
     connection.execute("INSERT INTO consolidation_state (project_id) VALUES (%s) ON CONFLICT DO NOTHING", (project["id"],))

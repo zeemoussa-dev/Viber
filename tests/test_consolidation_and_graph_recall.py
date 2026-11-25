@@ -52,6 +52,33 @@ def test_consolidation_stores_facts_proposes_rules_and_reads_only_new_episodes(c
     assert client.post(f"/v1/projects/{project_key}/memory/consolidate").json()["episodes"] == 1
 
 
+def test_claude_consolidates_through_mcp_with_no_separate_model(client, project_key, monkeypatch):
+    monkeypatch.setenv("VIBER_LLM_PROVIDER", "none")
+    assert "Nothing new" in call(client, project_key, "viber_episodes_pending")
+    episode(client, project_key, "We moved billing to UTC days.")
+    episode(client, project_key, "The updater now checks digests.")
+    pending = call(client, project_key, "viber_episodes_pending")
+    assert "2 episode(s)" in pending and "UTC days" in pending
+    last = pending.split("through_episode_id=")[1].strip().rstrip(".")
+    call(client, project_key, "viber_remember", text="Billing prorates by UTC days.")
+    assert "Marked through" in call(client, project_key, "viber_consolidated", through_episode_id=last)
+    assert "Nothing new" in call(client, project_key, "viber_episodes_pending")
+    episode(client, project_key, "A new thing happened.")
+    assert "1 episode(s)" in call(client, project_key, "viber_episodes_pending")
+
+
+def test_claude_writes_a_component_reflection_through_mcp(client, project_key):
+    base = f"/v1/projects/{project_key}"
+    client.post(f"{base}/components", json={"key": "sb-fleet"})
+    client.post(f"{base}/items", json={"kind": "bug", "title": "Heartbeat refused", "component_keys": ["sb-fleet"]})
+    assert "Heartbeat refused" in call(client, project_key, "viber_component_digest", component="sb-fleet")
+    call(client, project_key, "viber_reflection", component="sb-fleet", statements=["Heartbeats are being refused for one install."])
+    assert "Heartbeats are being refused" in call(client, project_key, "viber_component_digest", component="sb-fleet")
+    call(client, project_key, "viber_reflection", component="sb-fleet", statements=["Fleet is healthy again."])
+    digest = call(client, project_key, "viber_component_digest", component="sb-fleet")
+    assert "Fleet is healthy again." in digest and "Heartbeats are being refused" not in digest
+
+
 def test_reflection_replaces_the_previous_summary_of_a_component(client, project_key, monkeypatch):
     monkeypatch.setenv("VIBER_LLM_PROVIDER", "fake")
     base = f"/v1/projects/{project_key}"
@@ -61,8 +88,10 @@ def test_reflection_replaces_the_previous_summary_of_a_component(client, project
     client.post(f"{base}/items", json={"kind": "bug", "title": "Manifest unsigned", "component_keys": ["sb-fleet"]})
     assert client.post(f"{base}/memory/reflect", params={"component": "sb-fleet"}).json()["statements"] == 1
     with transaction() as connection:
-        live = connection.execute("SELECT count(*) AS n FROM fact WHERE subject = 'reflection:sb-fleet' AND valid_to IS NULL").fetchone()["n"]
-        ended = connection.execute("SELECT count(*) AS n FROM fact WHERE subject = 'reflection:sb-fleet' AND valid_to IS NOT NULL").fetchone()["n"]
+        live = connection.execute("SELECT count(*) AS n FROM fact WHERE subject = 'reflection:sb-fleet' AND valid_to IS NULL "
+                                  "AND project_id = (SELECT id FROM project WHERE key = %s)", (project_key,)).fetchone()["n"]
+        ended = connection.execute("SELECT count(*) AS n FROM fact WHERE subject = 'reflection:sb-fleet' AND valid_to IS NOT NULL "
+                                   "AND project_id = (SELECT id FROM project WHERE key = %s)", (project_key,)).fetchone()["n"]
     assert (live, ended) == (1, 1)
 
 

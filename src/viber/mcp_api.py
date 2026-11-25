@@ -86,8 +86,16 @@ TOOLS = [
     tool("viber_retire", "Mark something obsolete without deleting it (decision, spec, fact or plan). Its applies_to and about links end.",
          {"thing": {"type": "string", "description": "type:key"}, "reason": {"type": "string"}}, ["thing"]),
     tool("viber_stale", "List decisions, specs and facts still linked to a component that is deprecated or archived, for review.", {}, []),
-    tool("viber_consolidate", "Have the chat model turn new episodes into facts and proposed rules (rules wait for a human). Needs VIBER_LLM_* set.", {}, []),
-    tool("viber_reflect", "Write a short current summary of one component from its recent work; it replaces the previous summary.",
+    tool("viber_episodes_pending", "Consolidation, step 1: the episodes since the last consolidation. Read them, keep what is durable, and store it with "
+                                   "viber_remember (as fact, or as rule for a human to accept). Then call viber_consolidated.", {}, []),
+    tool("viber_consolidated", "Consolidation, step 2: mark the episodes up to this one as handled, so the next batch starts after it.",
+         {"through_episode_id": {"type": "string", "description": "id of the last episode you handled"}}, ["through_episode_id"]),
+    tool("viber_component_digest", "Reflection, step 1: recent changes, work and facts about one component, plus its current summary.",
+         {"component": {"type": "string"}}, ["component"]),
+    tool("viber_reflection", "Reflection, step 2: store a current summary of a component (1 to 5 short statements); it replaces the previous summary.",
+         {"component": {"type": "string"}, "statements": {"type": "array", "items": {"type": "string"}}}, ["component", "statements"]),
+    tool("viber_consolidate", "Only if a separate chat model is configured (VIBER_LLM_*): have it do the consolidation. Normally use viber_episodes_pending.", {}, []),
+    tool("viber_reflect", "Only if a separate chat model is configured: have it write a component summary. Normally use viber_component_digest.",
          {"component": {"type": "string"}}, ["component"]),
     tool("viber_duplicates", "List live facts that mean nearly the same thing, so the older one can be superseded.", {}, []),
 ]
@@ -263,6 +271,34 @@ def run_stale(connection, project, arguments):
     return "\n".join(f"{r['type']}:{r['key']} {r['relation']} {r['component']} ({r['lifecycle']})" for r in rows) or "Nothing is tied to a deprecated or archived component."
 
 
+def run_episodes_pending(connection, project, arguments):
+    batch = consolidation.pending_episodes(connection, project)
+    if not batch["episodes"]:
+        return "Nothing new to consolidate."
+    lines = [f"{len(batch['episodes'])} episode(s) since {batch['since'] or 'the start'}. Keep only what stays true; one short statement each."]
+    lines += [f"- [{e['id']}] ({e['kind']}) {' '.join(e['content'].split())[:400]}" for e in batch["episodes"]]
+    lines.append(f"When done, call viber_consolidated with through_episode_id={batch['episodes'][-1]['id']}.")
+    return "\n".join(lines)
+
+
+def run_consolidated(connection, project, arguments):
+    return f"Marked through episode {consolidation.mark_consolidated(connection, project, arguments['through_episode_id'], ACTOR)['through']}."
+
+
+def run_component_digest(connection, project, arguments):
+    d = consolidation.component_digest(connection, project, arguments["component"])
+    out = [f"Recent about {arguments['component']}:"]
+    for label, key in (("Changes", "changes"), ("Work", "items"), ("Facts", "facts"), ("Current summary", "current_reflection")):
+        if d[key]:
+            out += [f"{label}:"] + [f"- {x}" for x in d[key]]
+    return "\n".join(out) if len(out) > 1 else f"Nothing recorded for {arguments['component']} yet."
+
+
+def run_reflection(connection, project, arguments):
+    r = consolidation.write_reflection(connection, project, arguments["component"], arguments["statements"], ACTOR)
+    return f"{r['component']}: {r['statements']} statement(s) stored; the previous summary is ended."
+
+
 def run_consolidate(connection, project, arguments):
     r = consolidation.propose(connection, project, ACTOR)
     return f"{r['episodes']} episode(s) read: {r.get('facts', 0)} fact(s) stored, {r.get('rules', 0)} rule(s) proposed, {r.get('dropped', 0)} dropped." + (f" {r['note']}" if r.get("note") else "")
@@ -278,7 +314,8 @@ def run_duplicates(connection, project, arguments):
     return "\n".join(f"{r['similarity']} older {r['older']}: {r['older_text'][:80]} | newer {r['newer']}: {r['newer_text'][:80]}" for r in rows) or "No near-duplicate facts."
 
 
-RUNNERS = {"viber_consolidate": run_consolidate, "viber_reflect": run_reflect, "viber_duplicates": run_duplicates, "viber_plan": run_plan, "viber_plan_add": run_plan_add, "viber_ref": run_ref, "viber_refs": run_refs,
+RUNNERS = {"viber_episodes_pending": run_episodes_pending, "viber_consolidated": run_consolidated,
+           "viber_component_digest": run_component_digest, "viber_reflection": run_reflection, "viber_consolidate": run_consolidate, "viber_reflect": run_reflect, "viber_duplicates": run_duplicates, "viber_plan": run_plan, "viber_plan_add": run_plan_add, "viber_ref": run_ref, "viber_refs": run_refs,
            "viber_retire": run_retire, "viber_stale": run_stale, "viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
            "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions,
            "viber_next_adr": run_next_adr, "viber_get_adr": run_get_adr, "viber_spec_add": run_spec_add,
