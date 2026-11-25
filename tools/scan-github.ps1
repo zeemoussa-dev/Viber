@@ -2,11 +2,12 @@
 .SYNOPSIS
   Scans GitHub repos with the gh CLI and posts their manifests to Viber (read-only on GitHub).
 .DESCRIPTION
-  For each repo: ensures a component exists (key = repo name), scans the default branch head,
-  then scans up to -MaxTags tags as released versions. Only root-level pyproject.toml and
-  package.json are read in this version; one component per repo.
+  For each repo: reads the file tree, asks Viber's /discover endpoint which components it holds
+  (one per repo by default; a monorepo without a root manifest is split by directory), creates
+  those components, scans each at the default branch head, then scans up to -MaxTags tags.
+  Manifests read: pyproject.toml, package.json, plugin.json, Chart.yaml, VERSION (root only).
 .EXAMPLE
-  .\tools\scan-github.ps1 -Project sbos -Owner zeemoussa-dev -Repos sb-core,sb-memory -MaxTags 3
+  .\tools\scan-github.ps1 -Project sbos -Owner zeemoussa-dev -Repos sb-core,sb-platform -MaxTags 3
 #>
 param(
     [Parameter(Mandatory)] [string] $Project,
@@ -19,7 +20,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$ManifestNames = @("pyproject.toml", "package.json")
 
 function Invoke-Viber([string] $Method, [string] $Path, $Body) {
     $headers = @{ "X-Viber-Actor" = "scan-github" }
@@ -44,35 +44,57 @@ function Get-RepoFile([string] $Repo, [string] $File, [string] $Ref) {
     }
 }
 
-function Get-ManifestFiles([string] $Repo, [string] $Ref) {
+function Get-ComponentFiles([string] $Repo, $Component, [string] $Ref) {
+    # Keys are relative to the component's own directory so the server sees one component's manifests.
     $files = @{}
-    foreach ($name in $ManifestNames) {
-        $text = Get-RepoFile $Repo $name $Ref
-        if ($null -ne $text) { $files[$name] = $text }
+    foreach ($manifestPath in $Component.manifests) {
+        $text = Get-RepoFile $Repo $manifestPath $Ref
+        if ($null -eq $text) { continue }
+        $relative = if ($Component.path) { $manifestPath.Substring($Component.path.Length + 1) } else { $manifestPath }
+        $files[$relative] = $text
     }
     return $files
+}
+
+function Invoke-ScanOrReport([string] $ComponentKey, [hashtable] $Body, [string] $Label) {
+    try {
+        return Invoke-Viber Post "/v1/projects/$Project/components/$ComponentKey/scan" $Body
+    } catch {
+        $detail = $_.ErrorDetails.Message
+        Write-Host ("  {0}: not scanned ({1})" -f $Label, ($detail -replace "\s+", " ").Substring(0, [Math]::Min(110, $detail.Length)))
+        return $null
+    }
 }
 
 foreach ($repo in $Repos) {
     try {
         $info = gh api "repos/$Owner/$repo" | ConvertFrom-Json
-        $headSha = (gh api "repos/$Owner/$repo/commits/$($info.default_branch)" | ConvertFrom-Json).sha
-        $files = Get-ManifestFiles $repo $info.default_branch
-        if ($files.Count -eq 0) { Write-Host "SKIP  $repo (no root pyproject.toml/package.json)"; continue }
-        try {
-            Invoke-Viber Post "/v1/projects/$Project/components" @{ key = $repo; repo = "$Owner/$repo"; kind = "service" } | Out-Null
-        } catch { if ($_.Exception.Response.StatusCode.value__ -ne 409) { throw } }
-        $head = Invoke-Viber Post "/v1/projects/$Project/components/$repo/scan" @{
-            ref = $info.default_branch; commit_sha = $headSha; is_tag = $false; files = $files }
-        Write-Host ("HEAD  {0,-34} {1,-10} deps={2,-3} manifest-links={3}" -f $repo, $head.semver, $head.dependencies, $head.links_from_manifests)
-        $tags = gh api "repos/$Owner/$repo/tags" | ConvertFrom-Json | Select-Object -First $MaxTags
-        foreach ($tag in $tags) {
-            $tagFiles = Get-ManifestFiles $repo $tag.name
-            if ($tagFiles.Count -eq 0) { Write-Host "  tag $($tag.name): no manifest"; continue }
-            $scan = Invoke-Viber Post "/v1/projects/$Project/components/$repo/scan" @{
-                ref = $tag.name; commit_sha = $tag.commit.sha; is_tag = $true; files = $tagFiles }
-            Write-Host ("  TAG {0,-12} -> {1}" -f $tag.name, $scan.semver)
+        $branch = $info.default_branch
+        $headSha = (gh api "repos/$Owner/$repo/commits/$branch" | ConvertFrom-Json).sha
+        $tree = gh api "repos/$Owner/$repo/git/trees/$branch`?recursive=1" | ConvertFrom-Json
+        $paths = @(($tree.tree | Where-Object { $_.type -eq "blob" }) | ForEach-Object { $_.path })
+        $plan = Invoke-Viber Post "/v1/projects/$Project/discover" @{ repo = $repo; paths = $paths }
+        $components = @($plan.components)
+        if ($components.Count -eq 0) { Write-Host "SKIP  $repo (no manifests found)"; continue }
+        $tags = @((gh api "repos/$Owner/$repo/tags" | ConvertFrom-Json) | Where-Object { $_.name } | Select-Object -First $MaxTags)
+        foreach ($component in $components) {
+            try {
+                Invoke-Viber Post "/v1/projects/$Project/components" @{
+                    key = $component.key; repo = "$Owner/$repo"; path = $component.path; kind = $component.kind } | Out-Null
+            } catch { if ($_.Exception.Response.StatusCode.value__ -ne 409) { throw } }
+            $headFiles = Get-ComponentFiles $repo $component $branch
+            $head = Invoke-ScanOrReport $component.key @{ ref = $branch; commit_sha = $headSha; is_tag = $false; files = $headFiles } "head"
+            if ($head) {
+                Write-Host ("HEAD  {0,-40} {1,-10} {2,-7} deps={3,-3} links={4}" -f $component.key, $head.semver, $component.kind, $head.dependencies, $head.links_from_manifests)
+            } else { Write-Host ("SKIP  {0,-40} {1}" -f $component.key, $component.kind) }
+            foreach ($tag in $tags) {
+                $tagFiles = Get-ComponentFiles $repo $component $tag.name
+                if ($tagFiles.Count -eq 0) { continue }
+                $scan = Invoke-ScanOrReport $component.key @{ ref = $tag.name; commit_sha = $tag.commit.sha; is_tag = $true; files = $tagFiles } "tag $($tag.name)"
+                if ($scan) { Write-Host ("  TAG {0,-12} -> {1}" -f $tag.name, $scan.semver) }
+            }
         }
+        foreach ($skipped in @($plan.ignored)) { Write-Host ("  ignored {0} ({1})" -f $skipped.path, $skipped.reason) }
     } catch {
         Write-Host "FAIL  $repo : $($_.Exception.Message)"
     }

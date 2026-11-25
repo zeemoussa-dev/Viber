@@ -2,7 +2,7 @@ from collections import deque
 
 from fastapi import HTTPException
 
-from .constraints import ConstraintError, highest, satisfies
+from .constraints import ConstraintError, highest, parse_version, satisfies
 from .db import insert_idempotent, record_audit, to_database_value
 from .manifests import parse_manifests
 
@@ -50,17 +50,24 @@ def parse_alias_text(text: str) -> tuple[str, str]:
 
 def ingest_scan(connection, project: dict, component: dict, ref: str | None, commit_sha: str | None,
                 is_tag: bool, files: dict[str, str], actor: str) -> dict:
+    if is_tag and not ref:
+        raise HTTPException(422, "a tag scan needs the tag name in 'ref'")
     manifests, problems = parse_manifests(files)
     primary = next((manifest for manifest in manifests if manifest.version), None)
     if primary is None:
         raise HTTPException(422, {"error": "no manifest with a version found", "problems": problems})
     directory = primary.file.rsplit("/", 1)[0] if "/" in primary.file else ""
     same_directory = [m for m in manifests if (m.file.rsplit("/", 1)[0] if "/" in m.file else "") == directory]
+    try:
+        parse_version(primary.version)
+    except ConstraintError as error:
+        raise HTTPException(422, f"{primary.file}: {error}")
     declares = {
         "name": primary.name,
         "manifests": [m.file for m in same_directory],
         "entry_point_groups": sorted({group for m in same_directory for group in m.entry_point_groups}),
         "dependencies": [vars(dep) for m in same_directory for dep in m.dependencies],
+        "contracts": [contract for m in same_directory for contract in m.contracts],
     }
     alias_conflicts = register_aliases(
         connection, project["id"], component["id"],
@@ -133,7 +140,33 @@ def relink_project(connection, project: dict) -> int:
         ).fetchall():
             if (stale["to_component_id"], stale["scope"]) not in seen:
                 connection.execute("UPDATE link SET state='drifted', updated_at=now() WHERE id=%s", (stale["id"],))
+        written += relink_contracts(connection, project, component, version)
     return written
+
+
+def relink_contracts(connection, project: dict, component: dict, version: dict) -> int:
+    seen_contract_ids: set = set()
+    for consumed in version["declares"].get("contracts", []):
+        connection.execute(
+            "INSERT INTO contract (project_id, key, kind) VALUES (%s,%s,'api') ON CONFLICT DO NOTHING",
+            (project["id"], consumed["contract"]))
+        contract_id = connection.execute(
+            "SELECT id FROM contract WHERE project_id=%s AND key=%s", (project["id"], consumed["contract"])).fetchone()["id"]
+        seen_contract_ids.add(contract_id)
+        connection.execute(
+            "INSERT INTO link (project_id, from_component_id, to_contract_id, type, scope, constraint_text, syntax, "
+            "declared_by, state, evidence) VALUES (%s,%s,%s,'consumes','runtime',%s,%s,'manifest','verified',%s) "
+            "ON CONFLICT (from_component_id, type, scope, to_contract_id) WHERE to_contract_id IS NOT NULL "
+            "DO UPDATE SET constraint_text = EXCLUDED.constraint_text, syntax = EXCLUDED.syntax, "
+            "declared_by = 'manifest', state = 'verified', evidence = EXCLUDED.evidence, updated_at = now()",
+            (project["id"], component["id"], contract_id, consumed["constraint"], consumed["syntax"],
+             to_database_value({"semver": version["semver"], "commit_sha": version["commit_sha"], "ref": version["git_ref"]})))
+    for stale in connection.execute(
+        "SELECT id, to_contract_id FROM link WHERE from_component_id = %s AND declared_by = 'manifest' "
+        "AND to_contract_id IS NOT NULL AND state <> 'drifted'", (component["id"],)).fetchall():
+        if stale["to_contract_id"] not in seen_contract_ids:
+            connection.execute("UPDATE link SET state='drifted', updated_at=now() WHERE id=%s", (stale["id"],))
+    return len(seen_contract_ids)
 
 
 def target_version(connection, component_id) -> tuple[str | None, str | None]:

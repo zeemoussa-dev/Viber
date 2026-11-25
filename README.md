@@ -38,10 +38,24 @@ Send `X-Viber-Actor: <name>` on writes so the audit log names who did it.
   own manifest as of its tag; `POST .../releases` stores a draft; `.../publish` refuses an inconsistent one.
 - Constraint solving is deterministic (PEP 440 and npm ranges); no model ever decides a version or a link.
 
+### Manifests and component boundaries (v0.3)
+
+- Read: `pyproject.toml`, `package.json`, `plugin.json`, `Chart.yaml`, and a root `VERSION` file.
+- `plugin.json` gives the plugin id (alias), its version, `requires` (plugin-to-plugin links) and
+  `framework_api`, which becomes a `consumes` link to the `plugin-api` contract with `>=<framework_api>`.
+  (Assumption: `framework_api` is a minimum. Confirm per plugin if that is wrong.)
+- `POST .../discover {repo, paths}` decides component boundaries: one component per repo when it has a
+  root `pyproject.toml`/`package.json`/`plugin.json`/`Chart.yaml`; a repo with no such root manifest (a
+  root `VERSION` file alone, or nothing) is split by directory (`repo.leaf`); test, vendor, template, doc and
+  build directories are ignored and reported.
+- A consumed contract is created on first use. Someone must say which component version **provides** it
+  (`POST .../components/{key}/versions/{semver}/provides`); until then its links report `no_provider`.
+
 ### Scanning GitHub
 
-Runs on your machine with `gh`; no token goes into a container. Root manifests only, one component per repo:
+Runs on your machine with `gh`; no token goes into a container. It asks Viber to discover components, then
+scans each at the default branch and at up to `-MaxTags` tags:
 
 ```powershell
-.\tools\scan-github.ps1 -Project sbos -Owner zeemoussa-dev -Repos sb-core,sb-memory -MaxTags 3
+.\tools\scan-github.ps1 -Project sbos -Owner zeemoussa-dev -Repos sb-core,sb-platform -MaxTags 3
 ```

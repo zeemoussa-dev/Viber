@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from . import links, service
 from .constraints import ConstraintError, parse_version
 from .db import insert_idempotent, record_audit, transaction
-from .models import (ContractIn, ContractVersionIn, LinkIn, ProvideIn, ReleaseIn, ScanIn)
+from .discovery import plan_components
+from .models import (ContractIn, ContractVersionIn, DiscoverIn, LinkIn, ProvideIn, ReleaseIn, ScanIn)
 from .security import actor_name, require_token
 
 router = APIRouter(prefix="/v1/projects/{project_key}", dependencies=[Depends(require_token)])
@@ -24,6 +25,13 @@ def scan_component(project_key: str, component_key: str, payload: ScanIn, actor:
         component = links.component_row(connection, project, component_key)
         return links.ingest_scan(connection, project, component, payload.ref, payload.commit_sha,
                                  payload.is_tag, payload.files, actor)
+
+
+@router.post("/discover")
+def discover_components(project_key: str, payload: DiscoverIn):
+    with transaction() as connection:
+        service.project_row(connection, project_key)
+    return plan_components(payload.repo, payload.paths)
 
 
 @router.get("/components/{component_key}/versions")

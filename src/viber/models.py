@@ -26,6 +26,11 @@ class ScanIn(BaseModel):
     files: dict[str, str]
 
 
+class DiscoverIn(BaseModel):
+    repo: str
+    paths: list[str]
+
+
 class LinkIn(BaseModel):
     from_component: str
     to_component: str | None = None
