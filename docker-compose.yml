@@ -18,6 +18,25 @@ services:
       timeout: 3s
       retries: 20
 
+  # Viber's own embedding service: meaning search never waits on any other product. Ollama serves the model; the
+  # first start pulls it into the viber_embed_models volume (about 1.2 GB for bge-m3) and shows in /v1/memory-health
+  # until it is ready. Set VIBER_EMBED_PROVIDER=none for keyword-only recall, or openai plus VIBER_EMBED_URL to use
+  # any OpenAI-compatible endpoint instead. Not published on the host.
+  embeddings:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c", "ollama serve & until ollama list >/dev/null 2>&1; do sleep 1; done; ollama list | grep -q \"$$VIBER_EMBED_MODEL\" || ollama pull \"$$VIBER_EMBED_MODEL\"; wait"]
+    environment:
+      VIBER_EMBED_MODEL: ${VIBER_EMBED_MODEL:-bge-m3}
+    volumes:
+      - viber_embed_models:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list | grep -q \"$$VIBER_EMBED_MODEL\""]
+      interval: 15s
+      timeout: 5s
+      retries: 80
+      start_period: 20s
+
   api:
     build:
       context: .
@@ -26,6 +45,10 @@ services:
     environment:
       VIBER_DATABASE_URL: postgresql://viber:${POSTGRES_PASSWORD:-viber_dev}@db:5432/viber
       VIBER_TOKEN: ${VIBER_TOKEN:-}
+      VIBER_EMBED_PROVIDER: ${VIBER_EMBED_PROVIDER:-ollama}
+      VIBER_EMBED_URL: ${VIBER_EMBED_URL:-http://embeddings:11434}
+      VIBER_EMBED_MODEL: ${VIBER_EMBED_MODEL:-bge-m3}
+      VIBER_EMBED_KEY: ${VIBER_EMBED_KEY:-}
     depends_on:
       db:
         condition: service_healthy
@@ -47,6 +70,8 @@ services:
     environment:
       VIBER_DATABASE_URL: postgresql://viber:${POSTGRES_PASSWORD:-viber_dev}@db:5432/viber_test
       VIBER_ADMIN_DATABASE_URL: postgresql://viber:${POSTGRES_PASSWORD:-viber_dev}@db:5432/viber
+      VIBER_EMBED_PROVIDER: none
+      VIBER_EMBED_AUTOSYNC: "0"
     depends_on:
       db:
         condition: service_healthy
@@ -56,3 +81,4 @@ services:
 
 volumes:
   viber_pgdata:
+  viber_embed_models:

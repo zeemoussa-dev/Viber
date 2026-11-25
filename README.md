@@ -65,6 +65,17 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
     (`sb-fleet` / `depends on` / `sb-contracts`; ended, never deleted) and facts linked to entities. MCP
     `viber_remember` (with `about`), `viber_link`, `viber_graph`; REST `.../graph/*`. `viber_recall` searches facts,
     accepted rules, decision statements, specs, items and episodes.
+- **Meaning search (v0.7), built into Viber:** Viber ships its own embedding service (an `embeddings` container running
+  Ollama with `bge-m3`; the first start pulls the model, about 1.2 GB, into the `viber_embed_models` volume) and keeps
+  vectors in Postgres with pgvector. Nothing depends on any other product. `VIBER_EMBED_PROVIDER` is `ollama`
+  (default), `openai` (any OpenAI-compatible endpoint, with `VIBER_EMBED_URL`, `VIBER_EMBED_MODEL`, `VIBER_EMBED_KEY`)
+  or `none` (keyword recall only, and `/v1/memory-health` says so). Recall fuses keyword and meaning results by rank
+  (reciprocal rank fusion) and falls back to keywords if the service is down. A write never waits for an embedding:
+  a background sync (every 20 s, or `POST /v1/embeddings/sync`) fills in what is missing or changed. Every vector
+  records its model and a query only uses the configured model's. Text that looks like a secret is never sent to the
+  model; it stays keyword-searchable. `GET /v1/memory-health` shows provider, model, vectors, pending and the last
+  error. **Recall checks** (`POST .../recall/checks`, `GET .../recall/checks/run`) are questions with the answer they
+  must return; run them after any change so ranking cannot quietly get worse.
 - **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,
