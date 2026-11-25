@@ -13,7 +13,8 @@ param(
     [string] $Repo = (Get-Location).Path,
     [Parameter(Mandatory)] [string] $Project,
     [string] $ViberUrl = "http://localhost:8088",
-    [string] $Token = ""
+    # Defaults to the VIBER_TOKEN environment variable, so it never has to appear on a command line.
+    [string] $Token = $env:VIBER_TOKEN
 )
 
 $ErrorActionPreference = "Stop"
