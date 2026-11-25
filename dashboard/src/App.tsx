@@ -10,6 +10,7 @@ import { MapPage } from './pages/MapPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { Overview } from './pages/Overview';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { PromptsPage } from './pages/PromptsPage';
 import { ReviewPage } from './pages/ReviewPage';
 import { SessionsPage } from './pages/SessionsPage';
 import { SystemPage } from './pages/SystemPage';
@@ -69,6 +70,7 @@ function Shell() {
             <NavItem to="/work" icon="task_alt" label="Work" />
             <NavItem to="/map" icon="hub" label="Map" />
             <NavItem to="/memory" icon="psychology" label="Memory" />
+            <NavItem to="/prompts" icon="chat" label="Prompts" />
           </NavSection>
           <NavSection title="Viber">
             <NavItem to="/system" icon="settings" label="System" />
@@ -92,6 +94,7 @@ function Shell() {
               <Route path="/work" element={<WorkPage />} />
               <Route path="/map" element={<MapPage />} />
               <Route path="/memory" element={<MemoryPage />} />
+              <Route path="/prompts" element={<PromptsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}

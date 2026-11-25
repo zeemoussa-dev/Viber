@@ -1,4 +1,5 @@
-"""Access tokens with a role. Admin only (see security.py). The token is shown once, when it is made; only its hash is kept."""
+"""Access tokens with a role, optionally limited to some projects. Admin only (see security.py). The token is shown once,
+when it is made; only its hash is kept."""
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +14,7 @@ router = APIRouter(prefix="/v1/tokens", dependencies=[Depends(require_token)])
 class TokenIn(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     role: str
+    project_keys: list[str] | None = None  # None = every project
 
 
 @router.post("", status_code=201)
@@ -21,19 +23,24 @@ def make_token(payload: TokenIn, actor: str = Depends(actor_name)):
         raise HTTPException(422, f"role is one of {', '.join(RANK)}")
     token = "vbr_" + secrets.token_urlsafe(32)
     with transaction() as connection:
-        row = connection.execute("INSERT INTO api_token (name, role, token_hash, created_by) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id",
-                                 (payload.name.strip(), payload.role, hash_token(token), actor)).fetchone()
+        if payload.project_keys is not None:
+            known = {r["key"] for r in connection.execute("SELECT key FROM project").fetchall()}
+            unknown = [k for k in payload.project_keys if k not in known]
+            if unknown:
+                raise HTTPException(422, f"no such project: {', '.join(unknown)}")
+        row = connection.execute("INSERT INTO api_token (name, role, token_hash, created_by, project_keys) VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING RETURNING id",
+                                 (payload.name.strip(), payload.role, hash_token(token), actor, payload.project_keys)).fetchone()
         if not row:
             raise HTTPException(409, f"a live token named '{payload.name}' already exists; revoke it first or pick another name")
-        record_audit(connection, actor, "create", "token", str(row["id"]), None, {"name": payload.name, "role": payload.role})
-    return {"id": str(row["id"]), "name": payload.name.strip(), "role": payload.role, "token": token,
-            "note": "Copy the token now. It is not shown again."}
+        record_audit(connection, actor, "create", "token", str(row["id"]), None, {"name": payload.name, "role": payload.role, "projects": payload.project_keys})
+    return {"id": str(row["id"]), "name": payload.name.strip(), "role": payload.role, "project_keys": payload.project_keys,
+            "token": token, "note": "Copy the token now. It is not shown again."}
 
 
 @router.get("")
 def list_tokens():
     with transaction() as connection:
-        return connection.execute("SELECT id::text AS id, name, role, created_by, created_at, last_used_at, revoked_at FROM api_token "
+        return connection.execute("SELECT id::text AS id, name, role, project_keys, created_by, created_at, last_used_at, revoked_at FROM api_token "
                                   "ORDER BY revoked_at IS NOT NULL, created_at DESC").fetchall()
 
 

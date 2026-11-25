@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 import os
@@ -9,8 +9,9 @@ from pathlib import Path
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, dashboard_api, embeddings, links, map_api, mcp_api, memory_api, service, session_api, structure_api, tokens_api
-from .security import actor_name, require_token
+from . import (__version__, dashboard_api, embeddings, links, map_api, mcp_api, memory_api, prompts_api, service, session_api,
+               structure_api, tokens_api)
+from .security import actor_name, require_token, visible_projects
 from .db import DryRunRollback, close_pool, insert_idempotent, record_audit, run_migrations, transaction
 from .models import (ComponentIn, ChangeIn, DecisionIn, EpisodeIn, FactIn, ImportBatch, ItemIn,
                      ItemUpdate, ProjectIn, RuleIn)
@@ -33,6 +34,7 @@ app.include_router(session_api.router)
 app.include_router(structure_api.router)
 app.include_router(memory_api.router)
 app.include_router(tokens_api.router)
+app.include_router(prompts_api.router)
 app.include_router(mcp_api.router)
 app.include_router(dashboard_api.router)
 
@@ -78,9 +80,11 @@ def create_project(payload: ProjectIn, actor: str = Depends(actor_name)):
 
 
 @app.get("/v1/projects", dependencies=protected)
-def list_projects():
+def list_projects(request: Request):
+    allowed = visible_projects(request)  # a token limited to some projects sees only those
     with transaction() as connection:
-        return connection.execute("SELECT id, key, name, created_at FROM project ORDER BY key").fetchall()
+        rows = connection.execute("SELECT id, key, name, created_at FROM project ORDER BY key").fetchall()
+    return [r for r in rows if allowed is None or r["key"] in allowed]
 
 
 @app.post("/v1/projects/{project_key}/components", status_code=201, dependencies=protected)

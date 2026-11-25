@@ -11,7 +11,7 @@ interface MemoryHealth {
   provider: string; model: string; mode: string; vectors: number; withheld: number; pending: number;
   last_ok_at: string | null; last_error: string | null; failures: number; healthy: boolean;
 }
-interface Token { id: string; name: string; role: string; created_by: string | null; created_at: string; last_used_at: string | null; revoked_at: string | null }
+interface Token { id: string; name: string; role: string; project_keys: string[] | null; created_by: string | null; created_at: string; last_used_at: string | null; revoked_at: string | null }
 
 const ROLES: { role: string; text: string }[] = [
   { role: 'read', text: 'Read: search and read only' },
@@ -25,6 +25,8 @@ export function SystemPage() {
   const tokens = useApi<Token[]>('/v1/tokens', 0);
   const [name, setName] = useState('');
   const [role, setRole] = useState('write');
+  const projects = useApi<{ key: string; name: string }[]>('/v1/projects');
+  const [scope, setScope] = useState<string[]>([]); // empty = every project
   const [fresh, setFresh] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -32,8 +34,8 @@ export function SystemPage() {
   async function make() {
     setProblem(null); setFresh(null);
     try {
-      const made = await post<{ token: string; name: string }>('/v1/tokens', { name: name.trim(), role });
-      setFresh(made.token); setName('');
+      const made = await post<{ token: string; name: string }>('/v1/tokens', { name: name.trim(), role, project_keys: scope.length ? scope : null });
+      setFresh(made.token); setName(''); setScope([]);
       tokens.reload();
     } catch (failure) { setProblem((failure as Error).message); }
   }
@@ -74,6 +76,7 @@ export function SystemPage() {
           columns={[
             { key: 'name', header: 'Name', render: (row) => row.name },
             { key: 'role', header: 'Role', render: (row) => <StatusBadge tone={row.role === 'admin' ? 'danger' : row.role === 'review' ? 'warning' : row.role === 'write' ? 'info' : 'neutral'}>{row.role}</StatusBadge> },
+            { key: 'projects', header: 'Projects', render: (row) => (row.project_keys ? row.project_keys.join(', ') : 'all') },
             { key: 'used', header: 'Last used', render: (row) => (row.last_used_at ? timeAgo(row.last_used_at) : 'never') },
             { key: 'state', header: '', align: 'end', render: (row) => row.revoked_at
               ? <span className="text-muted">revoked {timeAgo(row.revoked_at)}</span>
@@ -89,6 +92,15 @@ export function SystemPage() {
           {ROLES.map((entry) => (
             <button key={entry.role} type="button" role="radio" aria-checked={role === entry.role}
               className={role === entry.role ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} onClick={() => setRole(entry.role)}>{entry.text}</button>
+          ))}
+        </div>
+        <p className="text-muted" style={{ margin: '0.5rem 0 0.25rem' }}>Projects it may use. Memory is per project, so limit a session's token to its own project.</p>
+        <div role="group" aria-label="Projects" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <button type="button" aria-pressed={scope.length === 0} className={scope.length === 0 ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} onClick={() => setScope([])}>All projects</button>
+          {(projects.data ?? []).map((entry) => (
+            <button key={entry.key} type="button" aria-pressed={scope.includes(entry.key)}
+              className={scope.includes(entry.key) ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
+              onClick={() => setScope(scope.includes(entry.key) ? scope.filter((k) => k !== entry.key) : [...scope, entry.key])}>{entry.name}</button>
           ))}
         </div>
         <button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={make}>Make token</button>
