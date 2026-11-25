@@ -197,7 +197,11 @@ def get_decision(project_key: str, decision_key: str):
             "SELECT * FROM decision WHERE project_id = %s AND key = %s", (project["id"], decision_key)).fetchone()
         if not row:
             raise HTTPException(404, f"decision '{decision_key}' not found")
-        return {k: v for k, v in row.items() if k not in ("tsv", "id", "project_id")}
+        # The statements are stored one per row (decision_point); give them back as the four sections of text.
+        points = connection.execute("SELECT kind, text FROM decision_point WHERE decision_id = %s ORDER BY kind, seq", (row["id"],)).fetchall()
+        sections = {name: "\n".join(p["text"] for p in points if p["kind"] == kind)
+                    for name, kind in (("context", "context"), ("decision", "decision"), ("alternatives", "alternative"), ("consequences", "consequence"))}
+        return {**{k: v for k, v in row.items() if k not in ("tsv", "id", "project_id")}, **sections}
 
 
 @app.post("/v1/projects/{project_key}/changes", status_code=201, dependencies=protected)
