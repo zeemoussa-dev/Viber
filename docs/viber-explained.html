@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viber, explained</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --panel: #ffffff; --ink: #1d1d1f; --muted: #626469; --line: #dcdad4;
+    --accent: #3b5bdb; --accent-soft: #e7ecfd; --ok: #2b8a3e; --ok-soft: #e3f4e7;
+    --warn: #b4690e; --warn-soft: #fbefd9; --bad: #c92a2a; --bad-soft: #fbe3e3;
+    --code: #f1efea; --shadow: 0 1px 2px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151618; --panel: #1e2023; --ink: #ececec; --muted: #a0a3a8; --line: #34373b;
+      --accent: #8aa4ff; --accent-soft: #232b4a; --ok: #6fcf86; --ok-soft: #1c3324;
+      --warn: #f0b35a; --warn-soft: #3a2c14; --bad: #ff8787; --bad-soft: #3d1f1f;
+      --code: #26282b; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  code, pre { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .88em; }
+  code { background: var(--code); padding: .1em .35em; border-radius: 4px; }
+  header.hero { padding: 56px 24px 32px; max-width: 980px; margin: 0 auto; }
+  header.hero h1 { font-size: 2.4rem; margin: 0 0 .3em; letter-spacing: -.02em; }
+  header.hero p { font-size: 1.15rem; color: var(--muted); max-width: 46em; margin: 0; }
+  nav.toc { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  nav.toc ol { list-style: none; margin: 0 auto; padding: 8px 24px; max-width: 980px; display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: .85rem; }
+  nav.toc a { color: var(--muted); text-decoration: none; padding: 2px 6px; border-radius: 6px; }
+  nav.toc a:hover, nav.toc a.on { color: var(--accent); background: var(--accent-soft); }
+  main { max-width: 980px; margin: 0 auto; padding: 0 24px 80px; }
+  section { padding: 44px 0 8px; scroll-margin-top: 48px; }
+  section > h2 { font-size: 1.6rem; margin: 0 0 .2em; letter-spacing: -.01em; }
+  section > h2 .n { color: var(--accent); font-weight: 600; margin-right: .4em; }
+  .lede { color: var(--muted); margin: 0 0 1.2em; max-width: 46em; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .muted { color: var(--muted); }
+  .small { font-size: .88rem; }
+  .tag { display: inline-block; font-size: .72rem; padding: 1px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .tag.ok { background: var(--ok-soft); color: var(--ok); } .tag.warn { background: var(--warn-soft); color: var(--warn); } .tag.bad { background: var(--bad-soft); color: var(--bad); }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 6px 12px; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { color: #fff; opacity: .9; }
+  button:disabled { opacity: .4; cursor: default; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  svg { max-width: 100%; height: auto; display: block; }
+  svg text { font-family: inherit; fill: var(--ink); }
+  .s-box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+  .s-hot { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+  .s-muted { fill: var(--muted); }
+  .s-line { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+  .s-acc { stroke: var(--accent); stroke-width: 2.4; fill: none; }
+  .node { cursor: pointer; }
+  .node:hover .s-box { stroke: var(--accent); }
+  .panel-info { margin-top: 12px; min-height: 92px; }
+  .panel-info h4 { margin: 0 0 4px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+  pre { background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 0; position: relative; }
+  .copy { position: absolute; top: 6px; right: 6px; font-size: .75rem; padding: 2px 8px; }
+  ul.tight { margin: .3em 0; padding-left: 1.2em; } ul.tight li { margin: .15em 0; }
+  .bar { display: flex; height: 38px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--code); }
+  .seg { display: flex; align-items: center; justify-content: center; font-size: .72rem; color: #fff; white-space: nowrap; overflow: hidden; transition: width .25s; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; font-size: .85rem; }
+  .legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; color: var(--muted); font-size: .8rem; }
+  td.y { color: var(--ok); font-weight: 700; } td.n2 { color: var(--bad); }
+  .role-btn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .folder { cursor: pointer; text-align: left; width: 100%; }
+  .folder .h { font-weight: 600; } .folder .d { color: var(--muted); font-size: .88rem; }
+  .folder[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .folder .more { display: none; margin-top: 8px; font-size: .86rem; color: var(--ink); }
+  .folder[aria-expanded="true"] .more { display: block; }
+  footer { max-width: 980px; margin: 0 auto; padding: 24px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>Viber, explained</h1>
+  <p>A shared notebook for Claude coding sessions. This page walks through what it is, how it works and where things live in the repo. You can click and drag most of the diagrams.</p>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <ol>
+    <li><a href="#s1">1 Idea</a></li><li><a href="#s2">2 Big picture</a></li><li><a href="#s3">3 A session</a></li>
+    <li><a href="#s4">4 Context pack</a></li><li><a href="#s5">5 Memory &amp; review</a></li><li><a href="#s6">6 Recall</a></li>
+    <li><a href="#s7">7 Code map</a></li><li><a href="#s8">8 Repo tour</a></li><li><a href="#s9">9 Rules</a></li><li><a href="#s10">10 Run it</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- 1 -->
+<section id="s1">
+  <h2><span class="n">1</span>The problem and the idea</h2>
+  <p class="lede">Claude forgets everything between sessions. On a big project you also run several sessions at once. Notes kept in markdown files go stale, and two sessions can edit the same file without knowing.</p>
+  <div class="grid g2">
+    <div class="card">
+      <span class="tag bad">Before</span>
+      <svg viewBox="0 0 380 190" role="img" aria-label="Three sessions each with their own notes files, not connected">
+        <g>
+          <rect class="s-box" x="10" y="14" width="100" height="40" rx="8"/><text x="60" y="39" text-anchor="middle" font-size="13">Session A</text>
+          <rect class="s-box" x="10" y="74" width="100" height="40" rx="8"/><text x="60" y="99" text-anchor="middle" font-size="13">Session B</text>
+          <rect class="s-box" x="10" y="134" width="100" height="40" rx="8"/><text x="60" y="159" text-anchor="middle" font-size="13">Session C</text>
+          <rect class="s-box" x="170" y="14" width="190" height="34" rx="6"/><text x="265" y="36" text-anchor="middle" font-size="12">BUGS.md (out of date)</text>
+          <rect class="s-box" x="170" y="68" width="190" height="34" rx="6"/><text x="265" y="90" text-anchor="middle" font-size="12">MEMORY.md (who wrote this?)</text>
+          <rect class="s-box" x="170" y="122" width="190" height="34" rx="6"/><text x="265" y="144" text-anchor="middle" font-size="12">CHANGELOG.md (conflict)</text>
+          <path class="s-line" d="M110 34 L170 31 M110 94 L170 85 M110 154 L170 139 M110 94 L170 139 M110 34 L170 85" stroke-dasharray="4 4"/>
+        </g>
+      </svg>
+      <p class="small muted">Every session reads and rewrites files. They disagree and drift.</p>
+    </div>
+    <div class="card">
+      <span class="tag ok">With Viber</span>
+      <svg viewBox="0 0 380 190" role="img" aria-label="Three sessions all talking to one shared Viber service backed by a database">
+        <rect class="s-box" x="10" y="14" width="100" height="40" rx="8"/><text x="60" y="39" text-anchor="middle" font-size="13">Session A</text>
+        <rect class="s-box" x="10" y="74" width="100" height="40" rx="8"/><text x="60" y="99" text-anchor="middle" font-size="13">Session B</text>
+        <rect class="s-box" x="10" y="134" width="100" height="40" rx="8"/><text x="60" y="159" text-anchor="middle" font-size="13">Session C</text>
+        <rect class="s-hot" x="170" y="56" width="100" height="78" rx="10"/><text x="220" y="90" text-anchor="middle" font-size="14" font-weight="700">Viber</text><text x="220" y="110" text-anchor="middle" font-size="11" class="s-muted">API + rules</text>
+        <path class="s-acc" d="M110 34 L170 80 M110 94 L170 95 M110 154 L170 112"/>
+        <ellipse class="s-box" cx="325" cy="95" rx="38" ry="14"/><path class="s-box" d="M287 95 v34 a38 14 0 0 0 76 0 v-34" fill="var(--panel)"/><ellipse class="s-box" cx="325" cy="95" rx="38" ry="14"/>
+        <text x="325" y="125" text-anchor="middle" font-size="12">Postgres</text>
+        <path class="s-acc" d="M270 95 L287 95"/>
+      </svg>
+      <p class="small muted">Sessions call one service. Rows in a database are the single source of truth.</p>
+    </div>
+  </div>
+  <div class="callout"><b>One sentence:</b> Viber gives every Claude session a shared, searchable memory of the project, plus a map of how its parts depend on each other.</div>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2><span class="n">2</span>The big picture</h2>
+  <p class="lede">Click any box to see what it is and where it lives in the repo.</p>
+  <div class="card">
+    <svg id="arch" viewBox="0 0 900 350" role="group" aria-label="Architecture diagram">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+      <!-- connectors -->
+      <path class="s-line" marker-end="url(#ah)" d="M170 105 L270 105"/>
+      <path class="s-line" marker-end="url(#ah)" d="M95 150 L95 190"/>
+      <path class="s-line" marker-end="url(#ah)" d="M170 225 L270 180"/>
+      <path class="s-line" marker-end="url(#ah)" d="M470 140 L560 140"/>
+      <path class="s-line" marker-end="url(#ah)" d="M370 70 L370 36 L830 36 L830 100" stroke-dasharray="5 4"/>
+      <path class="s-line" marker-end="url(#ah)" d="M370 250 L370 215"/>
+      <path class="s-line" marker-end="url(#ah)" d="M560 285 L470 285" stroke-dasharray="5 4"/>
+      <path class="s-line" marker-end="url(#ah)" d="M170 315 L270 205" stroke-dasharray="5 4"/>
+      <text x="220" y="96" text-anchor="middle" font-size="11" class="s-muted">MCP tools</text>
+      <text x="105" y="174" font-size="11" class="s-muted">fires</text>
+      <text x="196" y="246" text-anchor="middle" font-size="11" class="s-muted">hook calls</text>
+      <text x="515" y="130" text-anchor="middle" font-size="11" class="s-muted">SQL</text>
+      <text x="600" y="30" text-anchor="middle" font-size="11" class="s-muted">sends text, gets vectors</text>
+      <text x="385" y="238" font-size="11" class="s-muted">REST</text>
+      <text x="515" y="276" text-anchor="middle" font-size="11" class="s-muted">approve rules</text>
+      <text x="196" y="306" font-size="11" class="s-muted">manifest text</text>
+      <!-- nodes -->
+      <g class="node" tabindex="0" data-k="claude"><rect class="s-box" x="20" y="60" width="150" height="90" rx="10"/><text x="95" y="100" text-anchor="middle" font-weight="700">Claude sessions</text><text x="95" y="120" text-anchor="middle" font-size="12" class="s-muted">Claude Code, many at once</text></g>
+      <g class="node" tabindex="0" data-k="hook"><rect class="s-box" x="20" y="190" width="150" height="70" rx="10"/><text x="95" y="222" text-anchor="middle" font-weight="700">Hook script</text><text x="95" y="241" text-anchor="middle" font-size="12" class="s-muted">viber-hook.ps1</text></g>
+      <g class="node" tabindex="0" data-k="api"><rect class="s-hot" x="270" y="70" width="200" height="145" rx="12"/><text x="370" y="110" text-anchor="middle" font-weight="700" font-size="17">Viber API</text><text x="370" y="132" text-anchor="middle" font-size="12" class="s-muted">FastAPI, one container</text><text x="370" y="156" text-anchor="middle" font-size="12">REST /v1/... and MCP /mcp</text><text x="370" y="176" text-anchor="middle" font-size="12">roles, audit log, recall</text><text x="370" y="196" text-anchor="middle" font-size="12">serves the dashboard</text></g>
+      <g class="node" tabindex="0" data-k="db"><rect class="s-box" x="560" y="90" width="170" height="100" rx="10"/><text x="645" y="130" text-anchor="middle" font-weight="700">Postgres</text><text x="645" y="150" text-anchor="middle" font-size="12" class="s-muted">+ pgvector, port 5433</text><text x="645" y="170" text-anchor="middle" font-size="12" class="s-muted">16 numbered migrations</text></g>
+      <g class="node" tabindex="0" data-k="emb"><rect class="s-box" x="770" y="100" width="120" height="90" rx="10"/><text x="830" y="136" text-anchor="middle" font-weight="700">Embeddings</text><text x="830" y="155" text-anchor="middle" font-size="11" class="s-muted">Ollama, bge-m3</text><text x="830" y="171" text-anchor="middle" font-size="11" class="s-muted">(optional)</text></g>
+      <g class="node" tabindex="0" data-k="dash"><rect class="s-box" x="270" y="250" width="200" height="70" rx="10"/><text x="370" y="282" text-anchor="middle" font-weight="700">Dashboard</text><text x="370" y="301" text-anchor="middle" font-size="12" class="s-muted">React app for humans</text></g>
+      <g class="node" tabindex="0" data-k="human"><rect class="s-box" x="560" y="250" width="130" height="70" rx="10"/><text x="625" y="282" text-anchor="middle" font-weight="700">You</text><text x="625" y="301" text-anchor="middle" font-size="12" class="s-muted">the reviewer</text></g>
+      <g class="node" tabindex="0" data-k="map"><rect class="s-box" x="20" y="290" width="150" height="50" rx="10"/><text x="95" y="320" text-anchor="middle" font-size="13" font-weight="700">GitHub scanner</text></g>
+    </svg>
+    <div class="card panel-info" id="arch-info" style="background:var(--code)" aria-live="polite">
+      <h4>Pick a box</h4><span class="muted">Solid arrows are the main path. Dashed arrows are optional or occasional.</span>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+  <h2><span class="n">3</span>Life of a session</h2>
+  <p class="lede">Step through what happens from the moment Claude opens in a repo until it finishes.</p>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <div class="row"><button id="st-prev">Back</button><button id="st-next" class="primary">Next step</button><button id="st-reset">Restart</button></div>
+      <span class="muted small" id="st-count"></span>
+    </div>
+    <svg id="seq" viewBox="0 0 860 340" role="img" aria-label="Sequence of messages between Claude, the hook and Viber"></svg>
+    <div class="card panel-info" id="st-info" style="background:var(--code)" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2><span class="n">4</span>What a new session is told</h2>
+  <p class="lede">At start, Viber hands the session a short <b>context pack</b>. It has a token budget (default 1,500). Sections are added in priority order, and what does not fit is dropped from the end. Drag the budget to see what survives. The line counts below are an illustrative example, not real data.</p>
+  <div class="card">
+    <div class="row" style="margin-bottom:12px"><label for="budget"><b>Budget:</b> <span id="budget-n">1500</span> tokens</label><input id="budget" type="range" min="150" max="2400" step="50" value="1500" style="flex:1;min-width:200px"></div>
+    <div class="bar" id="pack" role="img" aria-label="Stacked bar of context pack sections"></div>
+    <div class="legend" id="pack-legend" style="margin-top:10px"></div>
+    <p class="small muted" id="pack-note" style="margin-bottom:0"></p>
+  </div>
+  <div class="callout">"For now" facts (temporary instructions that end by themselves) go <b>first</b>, so they are the last thing the budget can cut. The newest handoff is kept whole (up to 2,000 characters); older ones are shortened to 600.</div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2><span class="n">5</span>Memory and human review</h2>
+  <p class="lede">Claude can write a lot, but it cannot make something binding. A rule or decision that a session proposes waits until a person accepts it.</p>
+  <div class="card">
+    <svg viewBox="0 0 860 150" role="img" aria-label="Flow: session proposes, status proposed, human reviews in dashboard, accepted or rejected, accepted rules appear in later context packs">
+      <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+      <rect class="s-box" x="10" y="45" width="150" height="60" rx="10"/><text x="85" y="72" text-anchor="middle" font-weight="700">Session</text><text x="85" y="91" text-anchor="middle" font-size="11" class="s-muted">viber_remember as rule</text>
+      <rect class="s-box" x="215" y="45" width="130" height="60" rx="10" stroke="var(--warn)"/><text x="280" y="72" text-anchor="middle" font-weight="700">Proposed</text><text x="280" y="91" text-anchor="middle" font-size="11" class="s-muted">not binding</text>
+      <rect class="s-hot" x="400" y="45" width="150" height="60" rx="10"/><text x="475" y="72" text-anchor="middle" font-weight="700">Review queue</text><text x="475" y="91" text-anchor="middle" font-size="11" class="s-muted">dashboard, a human</text>
+      <rect class="s-box" x="610" y="10" width="110" height="50" rx="10" stroke="var(--ok)"/><text x="665" y="40" text-anchor="middle" font-weight="700">Accepted</text>
+      <rect class="s-box" x="610" y="90" width="110" height="50" rx="10" stroke="var(--bad)"/><text x="665" y="120" text-anchor="middle" font-weight="700">Rejected</text>
+      <rect class="s-box" x="760" y="10" width="95" height="50" rx="10"/><text x="807" y="32" text-anchor="middle" font-size="12">In every</text><text x="807" y="49" text-anchor="middle" font-size="12">new pack</text>
+      <path class="s-line" marker-end="url(#ah2)" d="M160 75 L215 75"/><path class="s-line" marker-end="url(#ah2)" d="M345 75 L400 75"/><path class="s-line" marker-end="url(#ah2)" d="M550 65 L610 38"/><path class="s-line" marker-end="url(#ah2)" d="M550 85 L610 112"/><path class="s-line" marker-end="url(#ah2)" d="M720 35 L760 35"/>
+    </svg>
+  </div>
+  <h3 style="margin:26px 0 8px">Who may do what</h3>
+  <p class="muted small" style="margin-top:0">Four roles, each includes the ones to its left. Click a role. Tokens can also be limited to certain projects.</p>
+  <div class="card">
+    <div class="row" id="roles" style="margin-bottom:10px">
+      <button class="role-btn" data-r="0">read</button><button class="role-btn" data-r="1">write</button><button class="role-btn" data-r="2">review</button><button class="role-btn" data-r="3">admin</button>
+    </div>
+    <table id="role-table"><thead><tr><th>Action</th><th>Needs</th><th>Allowed?</th></tr></thead><tbody></tbody></table>
+    <p class="small muted" style="margin-bottom:0">Sessions are meant to use a <b>write</b> token. If no master token is configured, Viber runs open (local development only).</p>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2><span class="n">6</span>How recall finds things</h2>
+  <p class="lede">When Claude calls <code>viber_recall</code>, Viber runs up to three searches and merges them by <b>rank</b>, not score (reciprocal rank fusion, k=60). Something found by several searches beats something found by one. Toggle the searches to see the effect. The items below are made up.</p>
+  <div class="card">
+    <div class="row" style="margin-bottom:12px">
+      <label><input type="checkbox" class="src" value="keyword" checked> Keyword (always on)</label>
+      <label><input type="checkbox" class="src" value="meaning" checked> Meaning (needs embeddings service)</label>
+      <label><input type="checkbox" class="src" value="graph" checked> Graph (question names a known entity)</label>
+    </div>
+    <div class="grid g2">
+      <div id="lists" class="small"></div>
+      <div><b class="small muted">Fused result</b><div id="fused"></div></div>
+    </div>
+    <p class="small muted" id="mode" style="margin-bottom:0"></p>
+  </div>
+  <div class="callout">Rules get a 1.3 boost. A rule that covers only some components is shown as <code>[only for a, b]</code>, and a temporary fact as <code>[temporary, until ...]</code>, so neither reads as permanent or global. Text that looks like a secret is never sent to the embedding model.</div>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2><span class="n">7</span>The code map: components and links</h2>
+  <p class="lede">Separately from memory, Viber keeps a map of which parts depend on which. A scanner feeds it manifest files (<code>pyproject.toml</code>, <code>package.json</code> and a few others). <b>Code reads the manifests and solves the version ranges. A model never decides a link.</b> The names here are an example.</p>
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <label>If <b>sb-contracts</b> becomes
+        <select id="bump"><option>1.2.0</option><option selected>1.4.0</option><option>2.0.0</option></select></label>
+      <label><input type="checkbox" id="drift"> sb-memory removes its dependency from its manifest</label>
+    </div>
+    <svg id="map" viewBox="0 0 860 300" role="img" aria-label="Dependency graph example"></svg>
+    <div class="small" id="map-note" aria-live="polite"></div>
+  </div>
+  <ul class="tight small muted">
+    <li><b>verified</b>: the manifest says so. <b>drifted</b>: it used to, and no longer does.</li>
+    <li><code>GET .../links/check</code> reports drifted links, unsatisfied constraints, unprovided contracts and unversioned targets.</li>
+    <li><code>GET .../components/{key}/impact?version=X</code> walks the dependents breadth-first and says which would break at X. Dev-only dependencies are ignored.</li>
+    <li>A <b>head</b> version is the latest scan of the default branch and gets overwritten; a <b>release</b> comes from a tag and never changes.</li>
+  </ul>
+</section>
+
+<!-- 8 -->
+<section id="s8">
+  <h2><span class="n">8</span>Repo tour</h2>
+  <p class="lede">Click a folder for the details. The Python code is grouped by job, not listed file by file.</p>
+  <div class="grid g3" id="tour"></div>
+</section>
+
+<!-- 9 -->
+<section id="s9">
+  <h2><span class="n">9</span>Rules of the road</h2>
+  <div class="grid g2">
+    <div class="card"><b>Rows, not files.</b><p class="small muted">Nothing long is stored. A fact is at most 500 characters, a rule 400, an episode 1,000, a spec row 400, a decision statement 500. Longer text is refused or split. File claims were built and then dropped, because rows need no locking.</p></div>
+    <div class="card"><b>One project never sees another.</b><p class="small muted">Every query filters by project, links cannot cross projects, and a token can be limited to chosen projects. A session in a folder no project owns writes nothing.</p></div>
+    <div class="card"><b>Migrations are append-only.</b><p class="small muted">Numbered SQL files run in order at startup under a lock. Add a new one. Never edit one that has shipped.</p></div>
+    <div class="card"><b>Everything is audited.</b><p class="small muted">Every write records who did it. A named token is its own actor; otherwise it comes from the <code>X-Viber-Actor</code> header.</p></div>
+    <div class="card"><b>Safe to repeat.</b><p class="small muted">Imports and hook writes use <code>ON CONFLICT DO NOTHING</code>, keyed by key or <code>source + source_ref</code>. Dry runs roll back after counting.</p></div>
+    <div class="card"><b>Tests run in Docker, on a real Postgres.</b><p class="small muted">The suite drops and recreates a <code>viber_test</code> database, never your dev data. <code>src/</code> is copied into the image, so Python changes need <code>--build</code>.</p></div>
+  </div>
+  <div class="callout"><b>Heads up:</b> <code>SPEC.md</code> is the original design and is out of date. Trust the README and the code.</div>
+</section>
+
+<!-- 10 -->
+<section id="s10">
+  <h2><span class="n">10</span>Run it</h2>
+  <p class="lede">Everything runs in Docker. Nothing needs installing on the host.</p>
+  <div class="grid">
+    <div><div class="small muted">Start the database and API (dashboard at http://localhost:8088, API docs at /docs)</div><pre><button class="copy">Copy</button><code>docker compose up -d --build</code></pre></div>
+    <div><div class="small muted">Run the full test suite</div><pre><button class="copy">Copy</button><code>docker compose --profile tests run --rm --build tests</code></pre></div>
+    <div><div class="small muted">Run one test file, filtered</div><pre><button class="copy">Copy</button><code>docker compose --profile tests run --rm --build tests pytest -q tests/test_map.py -k drift</code></pre></div>
+    <div><div class="small muted">Dashboard with hot reload (needs the API container up)</div><pre><button class="copy">Copy</button><code>cd dashboard; npm install; npm run dev</code></pre></div>
+    <div><div class="small muted">Connect Claude Code to the MCP tools</div><pre><button class="copy">Copy</button><code>claude mcp add --transport http viber http://localhost:8088/mcp</code></pre></div>
+  </div>
+  <p class="small muted">The first start pulls a ~1.2 GB embedding model. Set <code>VIBER_EMBED_PROVIDER=none</code> for keyword-only recall and a fast start.</p>
+</section>
+
+</main>
+<footer>Describes the repo at commit <code>007c421</code> (2026-11-26). The diagrams are simplified, and the example names, numbers and recall items are illustrative.</footer>
+
+<script>
+(function () {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+
+  /* nav highlight */
+  const links = $$("nav.toc a");
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id)); }), { rootMargin: "-40% 0px -55% 0px" });
+  $$("main section").forEach(s => io.observe(s));
+
+  /* 2 architecture */
+  const ARCH = {
+    claude: ["Claude sessions", "Claude Code windows working in repos, possibly several at once. They never read each other's notes directly: they go through Viber. They use the viber_* tools (35 of them) and recall before re-deriving things.", "CLAUDE.md, .mcp.json"],
+    hook: ["Hook script", "A PowerShell script Claude Code runs on SessionStart, PostToolUse, Stop and SessionEnd. It asks Viber which project the folder belongs to, registers the session, injects the context pack, and records which files were edited. If Viber is down it exits silently and never blocks the session.", "hooks/viber-hook.ps1, hooks/install.ps1"],
+    api: ["Viber API", "One FastAPI app. Routers cover the map, sessions, memory, tokens, prompts, backups, MCP and dashboard read models. Plain SQL through a psycopg pool, no ORM. It also serves the built dashboard and runs background jobs: expiring temporary facts, syncing embeddings and scheduling backups.", "src/viber/main.py, mcp_api.py, service.py, security.py"],
+    db: ["Postgres + pgvector", "The only store. Projects, components, versions, links, items, decisions, changes, sessions, episodes, facts, rules, the memory graph, tokens and an append-only audit table. Schema comes from 16 numbered migrations. Vectors for meaning search live here too.", "src/viber/migrations/*.sql, db.py"],
+    emb: ["Embeddings service", "An Ollama container running bge-m3. It turns text into vectors so recall can search by meaning. Optional: with the provider set to none, recall is keyword-only. Writes never wait for it; a background sync fills in vectors every 20 seconds.", "docker-compose.yml, embeddings.py"],
+    dash: ["Dashboard", "A React 19 + Vite + TypeScript app for humans: Overview, Sessions, Review queue, Work, Map, Memory, Projects, Prompts and System pages. It is where rules and decisions get accepted. Built in a Docker stage and served from /dashboard/ by the API container.", "dashboard/src/pages/*"],
+    human: ["You", "The only one who can make a proposed rule or decision binding. Use the dashboard's Review queue. Admins also create tokens and run backups from the System page.", "dashboard_api.py"],
+    map: ["GitHub scanner", "A script you run on your machine using the local gh CLI. It reads manifest files from repos and posts their text to Viber. The service itself never clones anything, and no GitHub token goes into a container.", "tools/scan-github.ps1"]
+  };
+  function pick(k) {
+    const [t, d, f] = ARCH[k];
+    $("#arch-info").innerHTML = "<h4></h4><div></div><div class='small muted' style='margin-top:6px'>Files: <code></code></div>";
+    $("#arch-info h4").textContent = t; $("#arch-info div").textContent = d; $("#arch-info code").textContent = f;
+    $$("#arch .node").forEach(n => { const r = n.querySelector("rect"); r.setAttribute("class", n.dataset.k === k ? "s-hot" : (n.dataset.k === "api" ? "s-hot" : "s-box")); });
+  }
+  $$("#arch .node").forEach(n => { n.addEventListener("click", () => pick(n.dataset.k)); n.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(n.dataset.k); } }); });
+
+  /* 3 session stepper */
+  const X = { c: 110, h: 400, v: 700 }, LANES = [["c", "Claude"], ["h", "Hook script"], ["v", "Viber"]];
+  const MSGS = [
+    { s: 1, f: "c", t: "h", y: 80, label: "SessionStart" },
+    { s: 1, f: "h", t: "v", y: 104, label: "which project? register" },
+    { s: 1, f: "v", t: "c", y: 128, label: "context pack (via hook)", back: true },
+    { s: 2, f: "c", t: "v", y: 160, label: "viber_recall (MCP)" },
+    { s: 2, f: "v", t: "c", y: 182, label: "matching lines", back: true },
+    { s: 3, f: "c", t: "h", y: 214, label: "edited a file" },
+    { s: 3, f: "h", t: "v", y: 234, label: "touch: any overlap?" },
+    { s: 4, f: "c", t: "v", y: 262, label: "viber_quick / bug / remember" },
+    { s: 5, f: "c", t: "v", y: 290, label: "viber_handoff, then SessionEnd" }
+  ];
+  const STEPS = [
+    ["Start", "Claude opens in a repo. The hook works out which project owns the folder (by repo, then by folder), registers the session and gets a tag like S3. Viber builds the context pack and the hook puts it into Claude's context. A folder no project owns gets nothing and writes nothing."],
+    ["Look things up", "Before re-deriving anything, Claude calls viber_recall. Viber searches facts, accepted rules, decisions, specs, open work and episodes, and answers with one line per hit. The reply opens by saying it is data, not instructions."],
+    ["Edit and overlap check", "Each file edit is reported by the hook. Viber stores it and checks whether another session touched the same file in the last 30 minutes. If so, the hook warns Claude to check viber_sessions before going on. It warns only; nothing is locked."],
+    ["Save what matters", "Small change: viber_quick logs it in one line. A bug: viber_bug. A durable fact: viber_remember. A rule: viber_remember as a rule, which waits for a human. A design choice: viber_decide, recorded as Proposed."],
+    ["Hand off", "Before finishing, Claude calls viber_handoff with what it learned, what it decided, open questions and next steps. SessionEnd marks the session ended. The next session, or a fork, sees that handoff in its context pack."]
+  ];
+  let step = 1;
+  function drawSeq() {
+    const svg = $("#seq"); svg.innerHTML = "";
+    svg.appendChild(el("defs")).innerHTML = '<marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>';
+    LANES.forEach(([k, name]) => {
+      svg.appendChild(el("rect", { class: "s-box", x: X[k] - 70, y: 8, width: 140, height: 34, rx: 8 }));
+      svg.appendChild(el("text", { x: X[k], y: 30, "text-anchor": "middle", "font-weight": 700, "font-size": 13 }, name));
+      svg.appendChild(el("line", { x1: X[k], y1: 42, x2: X[k], y2: 330, stroke: "var(--line)", "stroke-width": 1.5, "stroke-dasharray": "4 4" }));
+    });
+    MSGS.forEach(m => {
+      if (m.s > step) return;
+      const cur = m.s === step, col = cur ? "var(--accent)" : "var(--muted)";
+      const x1 = X[m.f] + (X[m.t] > X[m.f] ? 4 : -4), x2 = X[m.t] + (X[m.t] > X[m.f] ? -4 : 4);
+      svg.appendChild(el("line", { x1, y1: m.y, x2, y2: m.y, stroke: col, "stroke-width": cur ? 2.4 : 1.4, "marker-end": "url(#ah3)", opacity: cur ? 1 : .55, "stroke-dasharray": m.back ? "5 4" : "0" }));
+      const mid = (X[m.f] + X[m.t]) / 2;
+      const lab = el("text", { x: mid, y: m.y - 6, "text-anchor": "middle", "font-size": 12, opacity: cur ? 1 : .6 }, m.label);
+      if (cur) lab.setAttribute("font-weight", 700);
+      svg.appendChild(lab);
+    });
+    const [t, d] = STEPS[step - 1];
+    $("#st-info").innerHTML = "<h4></h4><div></div>"; $("#st-info h4").textContent = step + ". " + t; $("#st-info div").textContent = d;
+    $("#st-count").textContent = "Step " + step + " of " + STEPS.length;
+    $("#st-prev").disabled = step === 1; $("#st-next").disabled = step === STEPS.length;
+  }
+  $("#st-next").onclick = () => { step = Math.min(STEPS.length, step + 1); drawSeq(); };
+  $("#st-prev").onclick = () => { step = Math.max(1, step - 1); drawSeq(); };
+  $("#st-reset").onclick = () => { step = 1; drawSeq(); };
+  drawSeq();
+
+  /* 4 context pack */
+  const PACK = [
+    ["Header", 140, "#6b7280", true], ["For now", 60, "#c2410c"], ["Rules", 220, "#2b8a3e"], ["Handoffs", 380, "#3b5bdb"],
+    ["Other sessions", 90, "#7c3aed"], ["Open bugs", 150, "#b91c1c"], ["Decisions", 130, "#0e7490"], ["Changes", 140, "#a16207"]
+  ];
+  function drawPack() {
+    const b = +$("#budget").value; $("#budget-n").textContent = b;
+    const total = PACK.reduce((a, p) => a + p[1], 0), bar = $("#pack"); bar.innerHTML = ""; $("#pack-legend").innerHTML = "";
+    let left = b, cut = [];
+    const scale = Math.max(total, b);
+    PACK.forEach(([n, size, color]) => {
+      const kept = Math.max(0, Math.min(size, left)); left -= kept;
+      if (kept < size) cut.push(n + (kept ? " (partly)" : ""));
+      const seg = document.createElement("div"); seg.className = "seg"; seg.style.background = color; seg.style.width = (kept / scale * 100) + "%";
+      seg.title = n + ": " + kept + " of " + size + " tokens kept"; if (kept / scale > .07) seg.textContent = n; bar.appendChild(seg);
+      const lg = document.createElement("span"); lg.innerHTML = "<i style='background:" + color + ";opacity:" + (kept ? 1 : .25) + "'></i>" + n + " " + kept + "/" + size; $("#pack-legend").appendChild(lg);
+    });
+    $("#pack-note").textContent = cut.length ? "Dropped or shortened: " + cut.join(", ") + "." : "Everything fits (" + total + " of " + b + " tokens used).";
+  }
+  $("#budget").oninput = drawPack; drawPack();
+
+  /* 5 roles */
+  const ACTIONS = [["Search and read memory (recall, views)", 0], ["Log a bug, fact, item or handoff", 1], ["Propose a rule or decision", 1], ["Accept, reject or retire a rule or decision", 2], ["Change which components a rule covers", 2], ["Create projects or tokens", 3], ["Download a backup", 3]];
+  const RN = ["read", "write", "review", "admin"];
+  function drawRoles(r) {
+    $$(".role-btn").forEach(b => b.classList.toggle("on", +b.dataset.r === r));
+    const tb = $("#role-table tbody"); tb.innerHTML = "";
+    ACTIONS.forEach(([a, need]) => {
+      const tr = document.createElement("tr"), ok = r >= need;
+      tr.innerHTML = "<td></td><td></td><td></td>"; tr.children[0].textContent = a; tr.children[1].textContent = RN[need];
+      tr.children[2].textContent = ok ? "Yes" : "No"; tr.children[2].className = ok ? "y" : "n2"; tb.appendChild(tr);
+    });
+  }
+  $$(".role-btn").forEach(b => b.onclick = () => drawRoles(+b.dataset.r)); drawRoles(1);
+
+  /* 6 recall */
+  const LISTS = {
+    keyword: ["Keyword", ["billing-rule", "deploy-note", "billing-bug"]],
+    meaning: ["Meaning", ["deploy-note", "invoice-fact", "billing-rule"]],
+    graph: ["Graph", ["deploy-note", "billing-owner"]]
+  };
+  const NAMES = { "billing-rule": "rule: never edit billing tables by hand", "deploy-note": "fact: billing deploys go out on Fridays", "billing-bug": "bug: billing rounding", "invoice-fact": "fact: invoices are issued monthly", "billing-owner": "fact: payments team owns billing" };
+  function drawRecall() {
+    const on = $$(".src").filter(c => c.checked).map(c => c.value);
+    if (!on.includes("keyword")) { $$(".src")[0].checked = true; return drawRecall(); }
+    const L = $("#lists"); L.innerHTML = "";
+    for (const k in LISTS) {
+      const d = document.createElement("div"); d.style.cssText = "margin-bottom:8px;opacity:" + (on.includes(k) ? 1 : .35);
+      d.innerHTML = "<b class='muted'>" + LISTS[k][0] + "</b>";
+      LISTS[k][1].forEach((id, i) => { const p = document.createElement("div"); p.textContent = (i + 1) + ". " + NAMES[id]; d.appendChild(p); });
+      L.appendChild(d);
+    }
+    const score = {}, via = {};
+    on.forEach(k => LISTS[k][1].forEach((id, i) => { const w = id === "billing-rule" ? 1.3 : 1; score[id] = (score[id] || 0) + w / (60 + i + 1); (via[id] = via[id] || []).push(k); }));
+    const order = Object.keys(score).sort((a, b) => score[b] - score[a]), max = score[order[0]];
+    const F = $("#fused"); F.innerHTML = "";
+    order.forEach((id, i) => {
+      const row = document.createElement("div"); row.style.cssText = "margin:6px 0";
+      row.innerHTML = "<div class='small'></div><div style='height:8px;border-radius:4px;background:var(--accent);margin-top:2px'></div>";
+      row.firstChild.textContent = (i + 1) + ". " + NAMES[id] + "  (found by " + via[id].join(" + ") + ")";
+      row.lastChild.style.width = (score[id] / max * 100) + "%"; F.appendChild(row);
+    });
+    $("#mode").textContent = "Mode: " + (on.includes("meaning") ? "hybrid" : on.includes("graph") ? "keyword + graph" : "keyword only (the fallback if the embeddings service is down)") + ". Score is the sum of 1/(60 + rank) per search, times 1.3 for rules.";
+  }
+  $$(".src").forEach(c => c.onchange = drawRecall); drawRecall();
+
+  /* 7 map */
+  const N = { web: [20, 100, "sb-web", "3.2.0", 150], core: [280, 100, "sb-core", "3.4.0", 150], con: [560, 100, "sb-contracts", "", 190], mem: [580, 220, "sb-memory", "1.3.0", 150] };
+  function ok(v, range) { return range(v.split(".").map(Number)); }
+  function drawMap() {
+    const v = $("#bump").value, drift = $("#drift").checked, svg = $("#map"); svg.innerHTML = "";
+    svg.appendChild(el("defs")).innerHTML = '<marker id="ah4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker>';
+    const coreOk = ok(v, x => (x[0] > 1 || (x[0] === 1 && x[1] >= 3)) && x[0] < 2);
+    const memOk = ok(v, x => x[0] >= 1);
+    const edge = (d, col, dashed, lx, ly, label, anchor) => {
+      svg.appendChild(el("path", { d, stroke: col, "stroke-width": 2.4, fill: "none", "marker-end": "url(#ah4)", "stroke-dasharray": dashed ? "6 5" : "0" }));
+      const t = el("text", { x: lx, y: ly, "font-size": 12, "text-anchor": anchor || "middle" }, label); t.style.fill = col; svg.appendChild(t);
+    };
+    edge("M170 128 L280 128", "var(--ok)", false, 225, 118, ">=3.0  ok");
+    edge("M430 128 L560 128", coreOk ? "var(--ok)" : "var(--bad)", false, 495, 118, ">=1.3,<2  " + (coreOk ? "ok" : "not met"));
+    edge("M655 220 L655 156", drift ? "var(--warn)" : memOk ? "var(--ok)" : "var(--bad)", drift, 665, 192, ">=1.0  " + (drift ? "drifted" : memOk ? "ok" : "not met"), "start");
+    for (const k in N) {
+      const [x, y, name, ver_, w] = N[k], bad = (k === "core" && !coreOk) || (k === "mem" && !memOk);
+      const g = el("g"); g.appendChild(el("rect", { class: k === "con" ? "s-hot" : "s-box", x, y, width: w, height: 56, rx: 10, style: bad ? "stroke:var(--bad);stroke-width:2.5" : "" }));
+      g.appendChild(el("text", { x: x + w / 2, y: y + 24, "text-anchor": "middle", "font-weight": 700 }, name));
+      g.appendChild(el("text", { x: x + w / 2, y: y + 43, "text-anchor": "middle", "font-size": 12, class: "s-muted" }, k === "con" ? "proposed: " + v : ver_));
+      svg.appendChild(g);
+    }
+    const broken = []; if (!coreOk) broken.push("sb-core"); if (!memOk) broken.push("sb-memory");
+    const note = [];
+    note.push(broken.length ? "<span class='tag bad'>would break</span> " + broken.join(", ") + (broken.includes("sb-core") ? " (and sb-web, one step further out, depends on it)" : "") : "<span class='tag ok'>nothing breaks</span> every direct dependent accepts " + v + ".");
+    if (drift) note.push("<span class='tag warn'>drifted</span> the sb-memory link was verified before; the manifest no longer lists it, so the next scan marks it drifted, and the links check reports it.");
+    $("#map-note").innerHTML = note.join("<br>");
+  }
+  $("#bump").onchange = drawMap; $("#drift").onchange = drawMap; drawMap();
+
+  /* 8 tour */
+  const TOUR = [
+    ["src/viber/", "The service (Python, FastAPI)", "Grouped by job:<br><b>Map</b>: manifests, discovery, links, constraints, map_api.<br><b>Sessions</b>: sessions, session_api, fornow (temporary facts).<br><b>Memory</b>: service (recall), embeddings, graph, consolidation, refs, adr, specs, views, prompts, atoms (size limits).<br><b>Access</b>: security, tokens_api.<br><b>Operations</b>: backup, backup_api, db, dashboard_api.<br><b>Front doors</b>: main (REST), mcp_api (MCP tools), structure_api, memory_api, models."],
+    ["src/viber/migrations/", "Database schema, 001 to 016", "Numbered SQL files applied in order at startup and recorded in <code>schema_migration</code>. Never edit one that has shipped; add the next number."],
+    ["dashboard/", "The human interface (React 19, Vite, TypeScript)", "Pages for Overview, Sessions, Review, Work, Map, Memory, Projects, Prompts and System. Look and components are vendored from second_brain (see NOTICE.md). <code>npm run build</code> is the only type check; there is no linter."],
+    ["hooks/", "Connecting Claude Code", "<code>viber-hook.ps1</code> handles the four session events. <code>install.ps1</code> writes a repo's <code>.claude/settings.local.json</code>, merging with what is there, keeping a .bak."],
+    ["tools/", "Scripts around the service", "<code>scan-github.ps1</code> and <code>restore-backup.ps1</code> are operational. The <code>import_v2_*.py</code> and <code>verify_v2_*.py</code> files are one-off migration tooling for the old markdown pipeline, not app code."],
+    ["tests/", "19 files, real Postgres", "Run in Docker. The session fixture drops and recreates <code>viber_test</code>. Embeddings are switched off so tests never need Ollama."],
+    ["project-scaffold, PROMPTS.md", "Wiring up other repos", "<code>project-scaffold</code> is a prompt you paste into Claude Code in another repo: it registers the project, installs the hooks, writes <code>.mcp.json</code> and slash commands. <code>PROMPTS.md</code> holds ready-made session prompts."],
+    ["README, DEPLOY, SPEC, CLAUDE", "Docs", "README says what exists. DEPLOY covers real deployment and backups. CLAUDE.md guides Claude Code in this repo. SPEC is the old design and is out of date."]
+  ];
+  const tour = $("#tour");
+  TOUR.forEach(([name, desc, more]) => {
+    const b = document.createElement("button"); b.className = "card folder"; b.setAttribute("aria-expanded", "false");
+    b.innerHTML = "<div class='h'><code></code></div><div class='d'></div><div class='more'></div>";
+    b.querySelector("code").textContent = name; b.querySelector(".d").textContent = desc; b.querySelector(".more").innerHTML = more;
+    b.onclick = () => b.setAttribute("aria-expanded", b.getAttribute("aria-expanded") === "true" ? "false" : "true");
+    tour.appendChild(b);
+  });
+
+  /* 10 copy */
+  $$(".copy").forEach(b => b.onclick = () => { const t = b.parentElement.querySelector("code").textContent; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1200); }, () => { b.textContent = "Select and copy"; }); });
+
+  pick("api");
+})();
+</script>
+</body>
+</html>
