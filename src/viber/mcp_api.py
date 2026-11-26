@@ -48,7 +48,9 @@ TOOLS = [
                            "and it disappears by itself.",
          {"lasts": {"type": "string", "description": "temporary fact: how long, such as 90m, 12h, 2d or 1w"},
           "until": {"type": "string", "description": "temporary fact: when it ends, ISO time with offset, such as 2026-11-27T08:00+04:00"},
-          "text": {"type": "string"}, "as": {"type": "string", "enum": ["fact", "rule"]}, "subject": {"type": "string"},
+          "text": {"type": "string"},
+          "components": {"type": "array", "items": {"type": "string"},
+                         "description": "for a rule shared by several components: propose it once and list them all"}, "as": {"type": "string", "enum": ["fact", "rule"]}, "subject": {"type": "string"},
           "category": {"type": "string", "description": "for rules: decision, pattern or constraint"},
           "about": {"type": "array", "items": {"type": "string"}, "description": "entity names this fact is about (the memory graph)"},
           "component": {"type": "string"}}, ["text"]),
@@ -181,7 +183,8 @@ def run_remember(connection, project, arguments):
                 "split it into several short facts and call viber_remember for each.")
     if arguments.get("as") == "rule":
         result, created = service.create_rule(connection, project, RuleIn(
-            text=arguments["text"], category=arguments.get("category", "constraint"), scope=scope, proposed_by=ACTOR), ACTOR)
+            text=arguments["text"], category=arguments.get("category", "constraint"), scope=scope, proposed_by=ACTOR,
+            components=arguments.get("components") or []), ACTOR)
         return "Proposed rule (a human must accept it)." if created else "That rule already exists."
     result, created = service.create_fact(connection, project, FactIn(
         text=arguments["text"], subject=arguments.get("subject"), scope=scope), ACTOR)

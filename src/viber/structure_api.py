@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from . import adr, fornow, graph, refs, service, specs, views
 from .security import RANK
 from .atoms import EPISODE_MAX, FACT_MAX, RELATION_MAX, RULE_MAX, SPEC_MAX, split_atoms
-from .db import transaction
+from .db import record_audit, transaction
 from .models import EpisodeIn, FactIn, RuleIn
 from .security import actor_name, require_token
 
@@ -246,6 +246,30 @@ def end_for_now(project_key: str, fact_id: str, request: Request, actor: str = D
 def _is_operator(request: Request) -> bool:
     """Only the review and admin roles speak for the operator; a session's write token never does."""
     return RANK[getattr(request.state, "role", "admin")] >= RANK["review"]
+
+
+class ReachIn(BaseModel):
+    components: list[str] = Field(max_length=100)  # empty = the whole project
+
+
+@router.put("/memory/rules/{rule_id}/components")
+def set_rule_reach(project_key: str, rule_id: str, payload: ReachIn, actor: str = Depends(actor_name)):
+    """Say which components a rule covers. Changing the reach of a rule changes who must obey it: review role."""
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        rule = connection.execute("SELECT status, components FROM rule WHERE project_id = %s AND id::text = %s", (project["id"], rule_id)).fetchone()
+        if not rule:
+            raise HTTPException(404, "rule not found")
+        if rule["status"] == "retired":
+            raise HTTPException(409, "a retired rule keeps what it covered")
+        names = sorted({c.strip() for c in payload.components if c.strip()})
+        known = {r["key"] for r in connection.execute("SELECT key FROM component WHERE project_id = %s", (project["id"],)).fetchall()}
+        unknown = [c for c in names if c not in known]
+        if unknown:
+            raise HTTPException(422, f"no such component in this project: {', '.join(unknown)}")
+        row = connection.execute("UPDATE rule SET components = %s::text[] WHERE id::text = %s RETURNING scope, components", (names, rule_id)).fetchone()
+        record_audit(connection, actor, "reach", "rule", rule_id, project["id"], {"before": rule["components"], "after": row["components"]})
+        return {"id": rule_id, **row}
 
 
 @router.get("/adr/next")

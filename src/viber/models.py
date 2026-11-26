@@ -177,7 +177,8 @@ class FactIn(BaseModel):
 class RuleIn(BaseModel):
     text: str = Field(max_length=400)  # one rule, one sentence
     category: str = "constraint"
-    scope: str = "project"
+    scope: str = "project"  # 'project' or 'component:a' (or 'component:a,b')
+    components: list[str] = []  # or list them here; empty with scope 'project' means the whole project
     status: str = "proposed"
     proposed_by: str | None = None
     source: str | None = None

@@ -255,7 +255,7 @@ def list_rules(project_key: str, status: str | None = None):
     with transaction() as connection:
         project = service.project_row(connection, project_key)
         return connection.execute(
-            "SELECT id, category, scope, text, status, source FROM rule "
+            "SELECT id, category, scope, components, text, status, source FROM rule "
             "WHERE project_id = %s AND (%s::text IS NULL OR status = %s) ORDER BY created_at",
             (project["id"], status, status),
         ).fetchall()

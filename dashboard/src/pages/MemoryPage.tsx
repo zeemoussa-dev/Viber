@@ -9,8 +9,9 @@ import { PageHeader } from '../ui/PageHeader';
 import { StatusBadge, type StatusTone } from '../ui/StatusBadge';
 import { Tabs } from '../ui/Tabs';
 import { SearchField, Toolbar } from '../ui/Toolbar';
+import { RuleReach } from './RuleReach';
 
-interface Rule { id: string; category: string; scope: string; text: string; status: string; source: string | null }
+interface Rule { id: string; category: string; scope: string; components: string[]; text: string; status: string; source: string | null }
 interface Fact { id: string; scope: string; subject: string | null; text: string; trust: string }
 interface Recalled { items: { kind: string; id: string; content: string; rank: number }[]; context: string }
 
@@ -71,7 +72,7 @@ export function MemoryPage() {
               columns={[
                 { key: 'text', header: 'Rule', render: (row) => row.text },
                 { key: 'category', header: 'Kind', hideBelow: 'sm', render: (row) => row.category },
-                { key: 'scope', header: 'Scope', hideBelow: 'md', render: (row) => row.scope },
+                { key: 'scope', header: 'Applies to', hideBelow: 'md', render: (row) => <RuleReach ruleId={row.id} components={row.components} locked={row.status === 'retired'} onSaved={rules.reload} /> },
                 { key: 'status', header: 'Status', align: 'end', render: (row) => <StatusBadge tone={RULE_TONE[row.status] ?? 'neutral'}>{row.status}</StatusBadge> },
               ]} />
           )}

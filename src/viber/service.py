@@ -133,14 +133,25 @@ def create_fact(connection, project: dict, payload: FactIn, actor: str = DEFAULT
     return {"id": fact_id}, created
 
 
+def reach_scope(scope: str, components: list[str] | None = None) -> str:
+    """The one spelling of what a rule covers: 'project', or 'component:a,b' sorted without repeats."""
+    if not components and scope.startswith("component:"):
+        components = scope[len("component:"):].split(",")
+    names = sorted({c.strip() for c in components or [] if c.strip()})
+    if names:
+        return "component:" + ",".join(names)
+    return "project" if scope.startswith("component:") else scope
+
+
 def create_rule(connection, project: dict, payload: RuleIn, actor: str = DEFAULT_ACTOR) -> tuple[dict, bool]:
+    payload = payload.model_copy(update={"scope": reach_scope(payload.scope, payload.components)})
     duplicate = connection.execute(
         "SELECT id FROM rule WHERE project_id = %s AND scope = %s AND lower(text) = lower(%s)",
         (project["id"], payload.scope, payload.text),
     ).fetchone()
     if duplicate:
         return {"id": str(duplicate["id"]), "duplicate_of": str(duplicate["id"])}, False
-    values = {"project_id": project["id"], **payload.model_dump()}
+    values = {"project_id": project["id"], **payload.model_dump(exclude={"components"})}  # the database fills the list from scope
     rule_id, created = insert_idempotent(connection, "rule", values)
     if created:
         record_audit(connection, actor, "create", "rule", rule_id, project["id"])
@@ -253,6 +264,12 @@ def recall(connection, project: dict, query: str, limit: int) -> dict:
     ends = {r["id"]: r["expires_at"] for r in connection.execute(
         "SELECT id::text AS id, expires_at FROM fact WHERE id::text = ANY(%s) AND expires_at IS NOT NULL", (ids,)).fetchall()} if ids else {}
     results = [{**row, "content": f"{row['content']} [temporary, until {fornow.stamp(ends[str(row['id'])])}]"} if str(row["id"]) in ends else row
+               for row in results]
+    # Nor may a rule for some components read as a rule for the whole project.
+    rule_ids = [str(row["id"]) for row in results if row["kind"] == "rule"]
+    reach = {r["id"]: r["components"] for r in connection.execute(
+        "SELECT id::text AS id, components FROM rule WHERE id::text = ANY(%s) AND cardinality(components) > 0", (rule_ids,)).fetchall()} if rule_ids else {}
+    results = [{**row, "content": f"[only for {', '.join(reach[str(row['id'])])}] {row['content']}"} if str(row["id"]) in reach else row
                for row in results]
     lines = [CONTEXT_PREAMBLE] + [
         f"[{row['kind']}:{row['id']}] {' '.join(row['content'].split())[:300]}" for row in results

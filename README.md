@@ -137,6 +137,11 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   every search stops returning it; it stays in the history. Because such a fact often grants permission to act, only the
   review and admin roles (the dashboard's For now card) record one as **set by the operator**; one recorded by a session
   says so, and a session cannot change or end the operator's. `viber_for_now` lists them, `viber_end_for_now` ends one.
+- **A rule can cover several components:** list them (`components` on `POST .../memory/rules` or `viber_remember`, or
+  `scope: component:a,b`); an empty list means the whole project. A session sees the rule when its component is in the
+  list, and recall labels it `[only for a, b]`. Change what a rule covers from the Review queue or Memory page, or
+  `PUT .../memory/rules/{id}/components` (review role; every component must exist). The database keeps the list and the
+  readable `scope` in step, however the row is written.
 - **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,

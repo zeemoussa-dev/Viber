@@ -6,10 +6,11 @@ import { EmptyState, LoadingState } from '../ui/EmptyState';
 import { Notice } from '../ui/Notice';
 import { PageHeader } from '../ui/PageHeader';
 import { StatusBadge } from '../ui/StatusBadge';
+import { RuleReach } from './RuleReach';
 
 interface ReviewData {
   counts: { rules: number; decisions: number; items: number };
-  rules: { id: string; category: string; scope: string; text: string; proposed_by: string | null; created_at: string }[];
+  rules: { id: string; category: string; scope: string; components: string[]; text: string; proposed_by: string | null; created_at: string }[];
   decisions: { key: string; title: string; context: string; decision: string; alternatives: string; consequences: string }[];
   items: { key: string; kind: string; title: string; gate_reason: string | null; status: string }[];
 }
@@ -46,7 +47,8 @@ export function ReviewPage() {
           {data.rules.map((rule) => (
             <div key={rule.id} className="viber-review-item">
               <StatusBadge tone="accent">{rule.category}</StatusBadge>{' '}
-              <span className="text-muted">{rule.scope} · {rule.proposed_by ?? 'agent'} · {timeAgo(rule.created_at)}</span>
+              <span className="text-muted">{rule.proposed_by ?? 'agent'} · {timeAgo(rule.created_at)} · applies to </span>
+              <RuleReach ruleId={rule.id} components={rule.components} onSaved={() => { setDone('Saved what the rule covers.'); reload(); }} />
               <p>{rule.text}</p>
               <div className="viber-actions">
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => act(`/memory/rules/${rule.id}/accept`, 'Rule accepted.')}>Accept</button>

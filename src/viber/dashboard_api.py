@@ -56,7 +56,7 @@ def review_queue(project_key: str):
         return {
             "counts": review_counts(connection, pid),
             "rules": connection.execute(
-                "SELECT id::text, category, scope, text, proposed_by, created_at FROM rule WHERE project_id=%s AND status='proposed' "
+                "SELECT id::text, category, scope, components, text, proposed_by, created_at FROM rule WHERE project_id=%s AND status='proposed' "
                 "ORDER BY created_at DESC", (pid,)).fetchall(),
             "decisions": connection.execute(
                 "SELECT d.key, d.title, d.decided_on, "

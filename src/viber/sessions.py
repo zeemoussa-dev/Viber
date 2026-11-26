@@ -161,8 +161,8 @@ def build_context_pack(connection, project: dict, session: dict | None, componen
                      [fornow.line(f) for f in fornow.live(connection, project, ["project", component_scope])]))
 
     rules = connection.execute(
-        "SELECT text FROM rule WHERE project_id = %s AND status = 'accepted' AND scope IN ('project', %s) ORDER BY created_at",
-        (project["id"], component_scope)).fetchall()
+        "SELECT text FROM rule WHERE project_id = %s AND status = 'accepted' AND (scope = 'project' OR %s = ANY(components)) "
+        "ORDER BY created_at", (project["id"], component["key"] if component else None)).fetchall()
     sections.append(("rules", "Rules (accepted)", [f"- {one_line(r['text'])}" for r in rules]))
 
     handoffs = connection.execute(

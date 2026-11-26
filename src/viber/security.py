@@ -24,7 +24,7 @@ RANK = {"read": 0, "write": 1, "review": 2, "admin": 3}
 READ_TOOLS = {"viber_recall", "viber_context", "viber_sessions", "viber_get_adr", "viber_spec_get", "viber_graph", "viber_refs",
               "viber_stale", "viber_duplicates", "viber_episodes_pending", "viber_component_digest", "viber_prompt", "viber_view", "viber_backup_status", "viber_for_now"}
 REVIEW_TOOLS = {"viber_retire"}
-REVIEW_PATHS = re.compile(r"/(accept|reject|retire|supersede)(/|$)|/memory/rules/[^/]+/(accept|retire)$")
+REVIEW_PATHS = re.compile(r"/(accept|reject|retire|supersede)(/|$)|/memory/rules/[^/]+/(accept|retire|components)$")
 ADMIN_PATHS = re.compile(r"^/v1/(tokens(/|$)|projects$|backups(/|$))")
 ADMIN_ALWAYS = re.compile(r"^/v1/(tokens(/|$)|backups/\d+/download$)")  # reading these needs admin too
 PROJECT_PATH = re.compile(r"^/v1/projects/([^/]+)")
