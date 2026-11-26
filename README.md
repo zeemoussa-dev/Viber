@@ -1,7 +1,9 @@
 # Viber
 
 Development methodology service: projects, components, versions, links, work (items, decisions, changes)
-and shared project memory (facts, rules, episodes), in one Postgres. See `SPEC.md` for the design.
+and shared project memory (facts, rules, episodes), in one Postgres. `SPEC.md` is the original design and is out of
+date (it still describes claims, locks, streams and a worker, which were removed or never built); this README says
+what exists.
 
 ## Run
 
@@ -18,16 +20,19 @@ and wiring Claude sessions to it, see `DEPLOY.md`.
 ## What exists
 
 Built in layers; each section below says which version added it: the core records (this section), links and
-versions (v0.2, v0.3), sessions (v0.4) and the dashboard (v0.5).
+versions (v0.2, v0.3), sessions (v0.4), the dashboard (v0.5), rows-not-files (v0.6), meaning search (v0.7),
+consolidation and roles (v0.8), per-project memory (v0.9) and backups (v1.0).
 
 - Schema: project, component, item (bugs/tasks/...), decision (ADRs, string keys kept as written), change
   (changelog), session, episode, fact, rule, note, audit (append-only), import_run.
 - API under `/v1/projects/{key}/...`: components, items, decisions, changes, memory (facts, rules + accept,
   episodes), `recall`, bulk `import/{items|decisions|changes|episodes|facts|rules}` (idempotent by
   `source` + `source_ref` or by key; `?dry_run=true` writes nothing), generated views (`changelog`, `bugs`).
-- Recall is keyword search only.
-- Not built yet: claims and file locks between concurrent sessions (overlap is only warned about), pgvector
-  recall, a background worker for consolidation, and importing second_brain's markdown (changelog, bugs, ADRs).
+- Recall fuses keyword search, meaning search (pgvector) and graph hops; see Sessions below.
+- Not built: claims and file locks between concurrent sessions. They were built and removed on purpose (Viber's own
+  data is rows, so there is nothing to lock); overlap on a repo's files is only warned about. Consolidation runs
+  when called (`POST .../memory/consolidate`), not on a schedule. Importing second_brain's markdown (changelog,
+  bugs, ADRs, stories, tasks, sprints) is done by the one-off scripts in `tools/` (`import_v2_*.py`), not by the service.
 
 ## Connecting a repository: `project-scaffold`
 
@@ -66,7 +71,7 @@ The loop: a hook registers each session and injects a small **context pack**; Cl
 during the work; edit hooks warn when two active sessions touch the same file; `viber_handoff` carries what a
 session learned to the next one or a fork. Nothing is a file bus: everything goes through the API.
 
-- **Context pack** (`POST .../sessions/start`): accepted rules, handoffs from earlier or sibling sessions
+- **Context pack** (`POST .../sessions/start`): For now facts (first, never cut by the budget), accepted rules, handoffs from earlier or sibling sessions
   (scoped to the component), other active sessions and the files they are editing, open bugs, recent
   decisions and changes. Capped by `budget_tokens` (default 1500); the size is logged per session, see
   `GET .../stats/sessions` (packs, average/max tokens, forks, overlap warnings, handoffs).
@@ -146,7 +151,8 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,
   `viber_remember` (fact, or a rule a human must accept), `viber_decide` (ADR as Proposed), `viber_handoff`,
-  `viber_sessions`. Connect with:
+  `viber_sessions`, plus `viber_next_adr`, `viber_get_adr`, `viber_spec_add|get|status`, `viber_link`, `viber_graph`,
+  `viber_prompt`, `viber_for_now`, `viber_end_for_now` and `viber_backup_status`. Connect with:
 
   ```powershell
   claude mcp add --transport http viber http://localhost:8088/mcp
