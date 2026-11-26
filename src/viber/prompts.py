@@ -99,7 +99,29 @@ def render(connection, project: dict, key: str, component: str | None = None) ->
         raise HTTPException(404, f"no prompt '{key}' in project '{project['key']}'; seed the defaults with POST .../prompts/seed")
     lines = [r["text"] for r in connection.execute("SELECT text FROM prompt_line WHERE prompt_id = %s ORDER BY seq", (row["id"],)).fetchall()]
     text = "\n".join(f"{n}. {line}" if len(lines) > 1 and n > 1 else line for n, line in enumerate(lines, start=1))
-    return text.replace("{project}", project["key"]).replace("{component}", component or "<component>")
+    names = component_keys(connection, project)
+    if component and names:
+        match = next((name for name in names if name.lower() == component.strip().lower()), None)
+        if not match:
+            raise HTTPException(422, f"'{component}' is not a component of '{project['key']}'. Components: {', '.join(names)}")
+        component = match
+    text = text.replace("{project}", project["key"]).replace("{component}", component or "<component>").replace("{components}", ", ".join(names))
+    # Every prompt ends with the live list, so a session never has to guess a component's name. Added when read, not
+    # stored, so it is always current and prompts you wrote yourself get it too.
+    if not names:
+        return text
+    footer = [f"Components of '{project['key']}' ({len(names)}); use these exact keys wherever a tool asks for a component: {', '.join(names)}."]
+    if component:
+        footer.append(f"This session's component: {component}.")
+    elif "<component>" in text:
+        footer.append("Where <component> appears above, use the one you are working on from this list; if that is unclear, ask.")
+    return text + "\n\n" + "\n".join(footer)
+
+
+def component_keys(connection, project: dict) -> list[str]:
+    """The components work can still happen in: deprecated and archived ones are left out."""
+    return [r["key"] for r in connection.execute(
+        "SELECT key FROM component WHERE project_id = %s AND lifecycle NOT IN ('deprecated', 'archived') ORDER BY key", (project["id"],)).fetchall()]
 
 
 def save(connection, project: dict, key: str, title: str, purpose: str, text: str) -> dict:

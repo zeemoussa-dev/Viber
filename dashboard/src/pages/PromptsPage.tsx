@@ -7,22 +7,33 @@ import { Notice } from '../ui/Notice';
 import { PageHeader } from '../ui/PageHeader';
 
 interface Prompt { key: string; title: string; purpose: string }
+interface Component { key: string; lifecycle?: string }
 
 export function PromptsPage() {
   const { project } = useProject();
   const list = useApi<Prompt[]>(project ? `/v1/projects/${project}/prompts` : null);
+  const components = useApi<Component[]>(project ? `/v1/projects/${project}/components` : null);
   const [chosen, setChosen] = useState<string | null>(null);
-  const [component, setComponent] = useState('');
+  const [component, setComponent] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
   const [text, setText] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const names = (components.data ?? []).filter((entry) => !['deprecated', 'archived'].includes(entry.lifecycle ?? '')).map((entry) => entry.key).sort();
+  // A component chosen in another project does not exist here.
+  const picked = component && names.includes(component) ? component : null;
+  const shown = names.filter((name) => name === picked || name.toLowerCase().includes(filter.trim().toLowerCase()));
 
-  async function open(key: string) {
+  async function open(key: string, forComponent: string | null = picked) {
     setProblem(null); setNote(null); setChosen(key);
     try {
-      const suffix = component.trim() ? `?component=${encodeURIComponent(component.trim())}` : '';
+      const suffix = forComponent ? `?component=${encodeURIComponent(forComponent)}` : '';
       setText(await apiFetch<string>(`/v1/projects/${project}/prompts/${key}${suffix}`));
     } catch (failure) { setProblem((failure as Error).message); }
+  }
+  function pick(name: string | null) {
+    setComponent(name);
+    if (chosen) void open(chosen, name);  // the prompt on screen follows the choice
   }
   async function copy() {
     try { await navigator.clipboard.writeText(text ?? ''); setNote('Copied. Paste it as the first message of the session.'); }
@@ -35,12 +46,23 @@ export function PromptsPage() {
 
   return (
     <>
-      <PageHeader title="Prompts" description={`What to give a session so it starts knowing what to do in ${project}. {project} and the component are filled in for you.`} />
+      <PageHeader title="Prompts" description={`What to give a session so it starts knowing what to do in ${project}. Each prompt carries the project's component list.`} />
       {problem && <Notice tone="error">{problem}</Notice>}
-      <Card title="Component (only for the component prompt)" padded>
-        <div className="viber-token">
-          <input value={component} aria-label="Component" placeholder="for example sb-fleet" onChange={(event) => setComponent(event.target.value)} />
-        </div>
+      <Card title={`Component${picked ? `: ${picked}` : ''}`} description={`Choose the one the session will work on, or none. ${names.length} in this project.`}>
+        {names.length === 0 ? <p className="text-muted">This project has no components yet.</p> : (
+          <>
+            <div className="viber-token">
+              <input value={filter} aria-label="Find a component" placeholder="Find a component, for example fleet" onChange={(event) => setFilter(event.target.value)} />
+            </div>
+            <div role="radiogroup" aria-label="Component" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.5rem', maxHeight: '11rem', overflowY: 'auto' }}>
+              <button type="button" role="radio" aria-checked={picked === null} className={picked === null ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} onClick={() => pick(null)}>None</button>
+              {shown.map((name) => (
+                <button key={name} type="button" role="radio" aria-checked={picked === name} className={picked === name ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'} onClick={() => pick(name)}>{name}</button>
+              ))}
+              {shown.length === 0 && <span className="text-muted">No component matches.</span>}
+            </div>
+          </>
+        )}
       </Card>
       {!list.data?.length ? (
         <Card><EmptyState icon="chat" title="No prompts yet">Add the default set for this project.</EmptyState>

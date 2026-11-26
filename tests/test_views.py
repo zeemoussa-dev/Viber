@@ -66,6 +66,29 @@ def test_the_claude_md_prompt_is_seeded_and_fills_in_the_project(client, project
     assert "about=['sb-fleet']" in text and "Do not delete BACKLOG.md" in text
 
 
+def test_every_prompt_ends_with_the_projects_live_component_list(client, project_key):
+    base = f"/v1/projects/{project_key}"
+    client.post(f"{base}/prompts/seed")
+    assert "Components of" not in client.get(f"{base}/prompts/start").text  # nothing to list yet
+    for name in ("beta", "alpha", "old"):
+        client.post(f"{base}/components", json={"key": name})
+    from viber.db import transaction
+    with transaction() as connection:
+        connection.execute("UPDATE component SET lifecycle = 'archived' WHERE key = 'old' AND project_id = (SELECT id FROM project WHERE key = %s)", (project_key,))
+    for key in ("start", "resume", "bug", "finish"):
+        text = client.get(f"{base}/prompts/{key}").text
+        assert f"Components of '{project_key}' (2)" in text and "alpha, beta." in text and "old" not in text.split("Components of")[1]
+    unfilled = client.get(f"{base}/prompts/component").text
+    assert "Where <component> appears above" in unfilled
+    filled = client.get(f"{base}/prompts/component", params={"component": "ALPHA"}).text
+    assert "This session's component: alpha." in filled and "<component>" not in filled
+    typo = client.get(f"{base}/prompts/component", params={"component": "alhpa"})
+    assert typo.status_code == 422 and "alpha, beta" in typo.text
+    client.put(f"{base}/prompts/mine", json={"title": "Mine", "purpose": "p", "text": "Pick from {components}."})
+    assert "Pick from alpha, beta." in client.get(f"{base}/prompts/mine").text
+    assert "alpha, beta." in call(client, project_key, "viber_prompt", key="start")
+
+
 def test_the_older_views_still_answer(client, project_key):
     seed(client, project_key)
     base = f"/v1/projects/{project_key}/views"
