@@ -1,7 +1,9 @@
 # CLAUDE.md
 
 Viber is a development-methodology service (FastAPI + Postgres/pgvector, with a React dashboard) that gives
-Claude sessions shared project memory. Design: `SPEC.md`. Setup and deployment: `README.md`, `DEPLOY.md`.
+Claude sessions shared project memory. What exists today: `README.md`. Setup and deployment: `DEPLOY.md`.
+`SPEC.md` is the original design and is out of date (it still describes claims/locks, a worker and streams, which
+were removed or never built); trust the README and the code over it.
 
 ## Using Viber while you work here
 
@@ -31,6 +33,12 @@ cd dashboard; npm run build                       # tsc -b && vite build (the on
 
 `src/` is copied into the image, not mounted, so Python changes need `--build`; `tests/` is mounted.
 
+A normal `up` also starts an `embeddings` container (Ollama) that pulls the ~1.2 GB `bge-m3` model on first run;
+set `VIBER_EMBED_PROVIDER=none` for keyword-only recall and a fast start. The `tests` service already sets
+`VIBER_EMBED_PROVIDER=none` and `VIBER_EMBED_AUTOSYNC=0`, so tests never need Ollama.
+`npm run dev` needs the API container up (it proxies `/v1` to :8088). The API serves the built dashboard only if
+`VIBER_DASHBOARD_DIR` (default `/app/dashboard_dist`) exists.
+
 ## Architecture (the parts that span files)
 
 - **One FastAPI app** (`src/viber/main.py`) mounts routers from `map_api` (components, versions, links, releases,
@@ -51,6 +59,18 @@ cd dashboard; npm run build                       # tsc -b && vite build (the on
   changes under a token budget (sections in priority order, lines dropped when over). Overlap warnings come from
   `file_touch` rows within a 30-minute window. The same operations back the MCP tools in `mcp_api.py`.
 - Rules and decisions proposed by agents stay `proposed` until a human accepts them in the dashboard review queue.
+- **Roles and isolation:** tokens have roles `read` < `write` < `review` < `admin` (MCP tools are classed the same
+  way); session tokens are `write`, so they propose but cannot accept, retire or create projects/tokens. A token can
+  be limited to some projects. Every query must filter by project and links cannot cross projects; a new endpoint
+  needs both the role check and the project filter (`security.py`).
+- **Rows, not files:** nothing long is stored. Fact 500 chars, rule 400, episode 1000, spec row 400, decision
+  statement 500; longer text is refused or split (`atoms.py`, `POST .../memory/split`). Importers must respect this.
+- **For now facts** (`viber_remember` with `lasts`/`until`) are temporary, listed first in the context pack so the
+  token budget cannot cut them, and ended by a background sweeper (`fornow.py`). Only review/admin roles may record
+  one as set by the operator.
+- `tools/` is mostly one-off migration tooling for the old markdown pipeline (`import_v2_*.py`, `verify_v2_*.py`,
+  sharing `v2lib.py`, `v2_import_lib.py`, `v2_common.py`), not app code. `scan-github.ps1` and `restore-backup.ps1`
+  are the operational scripts.
 
 ## Working rules
 
