@@ -6,8 +6,9 @@ from .db import record_audit, to_database_value
 from .models import HandoffIn, SessionStartIn
 
 ACTIVE_WINDOW_SQL = "now() - interval '30 minutes'"
+NEWEST_HANDOFF_CHARS = 2000
 CHARACTERS_PER_TOKEN = 4
-OPEN_BUG_EXCLUDED_STATUSES = ("Closed", "Done", "Fixed", "Won't Fix")
+OPEN_BUG_EXCLUDED_STATUSES = ("Closed", "Done", "Fixed", "Won't Fix", "Dropped")
 DECISION_EXCLUDED_STATUSES = ("Rejected", "Superseded", "Deprecated")
 
 
@@ -171,7 +172,10 @@ def build_context_pack(connection, project: dict, session: dict | None, componen
         "AND (%s::uuid IS NULL OR e.session_id IS DISTINCT FROM %s::uuid) ORDER BY e.occurred_at DESC LIMIT 3",
         (project["id"], component_scope, session_id, session_id)).fetchall()
     sections.append(("handoffs", "Handoffs from earlier or sibling sessions (newest first)",
-                     [f"- [{h['tag'] or '?'} {h['occurred_at']:%m-%d %H:%M}] {one_line(h['content'], 600)}" for h in handoffs]))
+                     # The newest handoff arrives whole: its open questions and next steps come last and are what the next session
+                     # needs most. Older ones are only a reminder.
+                     [f"- [{h['tag'] or '?'} {h['occurred_at']:%m-%d %H:%M}] {one_line(h['content'], NEWEST_HANDOFF_CHARS if n == 0 else 600)}"
+                      for n, h in enumerate(handoffs)]))
 
     others = active_sessions(connection, project, session_id)
     sections.append(("active_sessions", "Other active sessions (avoid their files)",

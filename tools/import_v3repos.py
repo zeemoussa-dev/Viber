@@ -429,9 +429,6 @@ def main():
     for r in repos:
         if comp_of(r) not in existing and comp_of(r) not in [n["key"] for n in need]:
             need.append({"key": comp_of(r), "kind": "service", "repo": comp_of(r)})
-    # Viber itself (CLAUDE.md only)
-    if "viber" not in existing:
-        need.append({"key": "viber", "kind": "service", "repo": "Viber"})
     known = existing | {n["key"] for n in need}
 
     for r in repos:
@@ -446,8 +443,8 @@ def main():
     for name in ("BACKLOG.md", "BUGS.md", "ESCALATIONS.md", "REVIEW-QUEUE.md", "STATUS.md"):
         plan_ledger(name, read(os.path.join(orch, name)))
     need += [n for n in plan_projects(read(os.path.join(orch, "PROJECTS.md")), known) if n["key"] not in known]
-    vp = os.path.join(VIBER_DIR, "CLAUDE.md")
-    plan_claude("viber", read(vp), comp="viber", ftype="CLAUDE.md(Viber)", src="v3repos:CLAUDE.md")
+    # Viber is its own product with its own Viber project: nothing about it is imported here (a re-run must never copy it
+    # back into this project).
     # README.md files: left alone
     notes.append("README.md (all repos): not imported by instruction (prose belongs to its repo)")
     impl = os.path.join(orch, "Implementation")

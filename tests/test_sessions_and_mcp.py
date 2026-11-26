@@ -175,3 +175,15 @@ def test_mcp_requires_the_token_when_set(client, monkeypatch):
     monkeypatch.setenv("VIBER_TOKEN", "secret")
     assert rpc(client, "ping").status_code == 401
     assert rpc(client, "ping", headers={"Authorization": "Bearer secret"}).status_code == 200
+
+
+def test_the_newest_handoff_reaches_the_next_session_whole_and_older_ones_are_shortened(client, project_key):
+    first = start(client, project_key)
+    client.post(f"/v1/projects/{project_key}/sessions/{first['session_id']}/handoff",
+                json={"summary": "old " + "o" * 900, "next_steps": ["old-last-step"]})
+    second = start(client, project_key)
+    client.post(f"/v1/projects/{project_key}/sessions/{second['session_id']}/handoff",
+                json={"summary": "new " + "n" * 900, "open_questions": ["pick A or C"], "next_steps": ["do the final step"]})
+    pack = start(client, project_key)["context"]
+    assert "pick A or C" in pack and "do the final step" in pack
+    assert "old-last-step" not in pack

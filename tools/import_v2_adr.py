@@ -2,6 +2,7 @@
 
 MODE=dry (default) | apply | verify.   Idempotent by key and by source+source_ref.
 """
+import os
 import re
 import sys
 
@@ -9,7 +10,8 @@ sys.path.insert(0, __file__.rsplit("/", 1)[0] if "/" in __file__ else ".")
 from v2_common import *  # noqa: F401,F403
 
 SOURCE = "v2-adr"
-FILE = "Implementation/Architecture/ADR.md"
+# v2 keeps two decision files: ADR.md (ADR-NNN) and ADR-v2.md (ADR-v2.NNN). Same layout; run once for each.
+FILE = os.environ.get("ADR_FILE", "Implementation/Architecture/ADR.md")
 HEADING = re.compile(r"^## ADR-(\S+?): (.*)$")
 LABEL = re.compile(r"^\*\*([^*\n]{1,90}?):\*\*\s*(.*)$")
 CONTEXT_LABELS = {"context"}

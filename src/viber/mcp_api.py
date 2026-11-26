@@ -92,7 +92,7 @@ TOOLS = [
          ["from", "relation", "to"]),
     tool("viber_refs", "Show everything linked to one thing, both directions (for example decision:ADR-v3.017 or component:sb-fleet).",
          {"thing": {"type": "string", "description": "type:key"}, "ended": {"type": "boolean"}}, ["thing"]),
-    tool("viber_retire", "Mark something obsolete without deleting it (decision, spec, fact or plan). Its applies_to and about links end.",
+    tool("viber_retire", "For the operator or a reviewer (a session token is refused): mark a decision, spec, fact or plan obsolete without deleting it. Its applies_to and about links end.",
          {"thing": {"type": "string", "description": "type:key"}, "reason": {"type": "string"}}, ["thing"]),
     tool("viber_backup_status", "Is Viber's own database backed up and checked? The last good backup, its age and size, and any problem.", {}, []),
     tool("viber_item", "Create a piece of work: a story, task, chore, spike, idea or bug, with details, optionally in a plan and under a parent item. "
