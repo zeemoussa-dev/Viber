@@ -1,6 +1,7 @@
 """The session loop: register a session, hand it a compact context pack, catch collisions, carry handoffs."""
 from fastapi import HTTPException
 
+from . import fornow
 from .db import record_audit, to_database_value
 from .models import HandoffIn, SessionStartIn
 
@@ -154,6 +155,10 @@ def build_context_pack(connection, project: dict, session: dict | None, componen
     component_scope = f"component:{component['key']}" if component else "project"
     session_id = session["id"] if session else None
     sections: list[tuple[str, str, list[str]]] = []
+
+    # First, so the token budget never cuts it: what is true only for now.
+    sections.append(("for_now", "For now (temporary: each ends on its own)",
+                     [fornow.line(f) for f in fornow.live(connection, project, ["project", component_scope])]))
 
     rules = connection.execute(
         "SELECT text FROM rule WHERE project_id = %s AND status = 'accepted' AND scope IN ('project', %s) ORDER BY created_at",

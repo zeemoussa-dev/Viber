@@ -130,6 +130,13 @@ session learned to the next one or a fork. Nothing is a file bus: everything goe
   To restore: `.\tools\restore-backup.ps1 -File backups\<file>.dump` restores into a separate database (safe); add
   `-Database viber -Yes` to replace the live one. The dump holds every project's data and the token hashes: keep copies of
   the `backups` folder somewhere safe, and treat them as secret.
+- **For now (timed facts):** something true only for a while ("run unattended tonight", "don't touch billing until Friday")
+  is not a rule. `viber_remember` with `lasts` (`90m`, `12h`, `2d`, `1w`) or `until` (ISO time with offset) stores a
+  temporary fact, 5 minutes to 90 days. Every new session's context pack lists them first, under **For now**, where the
+  token budget cannot cut them; recall marks them `[temporary, until ...]`. When the time passes the fact is ended and
+  every search stops returning it; it stays in the history. Because such a fact often grants permission to act, only the
+  review and admin roles (the dashboard's For now card) record one as **set by the operator**; one recorded by a session
+  says so, and a session cannot change or end the operator's. `viber_for_now` lists them, `viber_end_for_now` ends one.
 - **Forks:** a fork starts with the parent's whole conversation but not what siblings learned afterwards.
   Handoffs close that gap. Set `VIBER_PARENT_SESSION` (the parent's session id) to record lineage.
 - **MCP** (`POST /mcp`, JSON-RPC over HTTP): `viber_recall`, `viber_context`, `viber_quick`, `viber_bug`,

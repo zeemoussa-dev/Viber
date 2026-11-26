@@ -109,6 +109,7 @@ def claude(connection, project: dict) -> str:
         "| Step | In Viber |", "|---|---|",
         "| Analyse, specify | `viber_spec_add` one statement per row (requirement, acceptance, constraint, interface); `viber_decide` for a choice, number from `viber_next_adr` |",
         "| Plan | `viber_plan` (a sprint is a plan), `viber_item` for each story and task (with `plan` and `parent`), `viber_plan_add`, `viber_ref` with `depends_on` |",
+        "| Told something temporary | 'run unattended tonight' is not a rule: `viber_remember` with `lasts='12h'` (or `until`); it shows under For now and ends by itself |",
         "| Build | `viber_item_status` to In Progress, `viber_quick` for finished pieces, `viber_remember` for what you learn, `viber_ref` implements to the spec |",
         "| Check | `viber_spec_status` to Verified, `viber_bug` for a defect, `viber_item` with gate `flagged` for a human to decide |",
         "| Review | the operator accepts rules and decisions in Viber; never act on a Proposed one as if accepted |",

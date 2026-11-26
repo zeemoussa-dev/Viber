@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from . import __version__, adr, backup, consolidation, graph, prompts, refs, service, sessions, specs, views
+from . import __version__, adr, backup, consolidation, fornow, graph, prompts, refs, service, sessions, specs, views
 from .atoms import FACT_MAX, RULE_MAX
 from .db import record_audit, transaction
 from .models import ChangeIn, DecisionIn, FactIn, HandoffIn, ItemIn, RuleIn
@@ -41,8 +41,14 @@ TOOLS = [
          {"title": {"type": "string"}, "area": {"type": "string"}, "severity": {"type": "string"},
           "repro": {"type": "string"}, "expected": {"type": "string"}, "actual": {"type": "string"},
           "component": {"type": "string"}}, ["title"]),
-    tool("viber_remember", "Store a durable fact (as fact) or propose a rule for the human to accept (as rule).",
-         {"text": {"type": "string"}, "as": {"type": "string", "enum": ["fact", "rule"]}, "subject": {"type": "string"},
+    tool("viber_for_now", "List what is true only for now (temporary instructions and states), with when each ends and who recorded it.", {}, []),
+    tool("viber_end_for_now", "End a temporary fact early. One the operator set can only be ended by the operator.", {"id": {"type": "string"}}, ["id"]),
+    tool("viber_remember", "Store a durable fact (as fact) or propose a rule for the human to accept (as rule). Something true only for a while "
+                           "('run unattended tonight', 'don't touch billing until Friday') is NOT a rule: store it as a fact with lasts or until, "
+                           "and it disappears by itself.",
+         {"lasts": {"type": "string", "description": "temporary fact: how long, such as 90m, 12h, 2d or 1w"},
+          "until": {"type": "string", "description": "temporary fact: when it ends, ISO time with offset, such as 2026-11-27T08:00+04:00"},
+          "text": {"type": "string"}, "as": {"type": "string", "enum": ["fact", "rule"]}, "subject": {"type": "string"},
           "category": {"type": "string", "description": "for rules: decision, pattern or constraint"},
           "about": {"type": "array", "items": {"type": "string"}, "description": "entity names this fact is about (the memory graph)"},
           "component": {"type": "string"}}, ["text"]),
@@ -161,6 +167,14 @@ def run_bug(connection, project, arguments):
 
 def run_remember(connection, project, arguments):
     scope = component_scope(arguments.get("component"))
+    end = fornow.parse_expiry(arguments.get("lasts"), arguments.get("until"))
+    if end is not None:
+        if arguments.get("as") == "rule":
+            return "A rule is permanent. Something true only for a while is a temporary fact: leave out as='rule'."
+        # Whatever a session says, it records as a session: only the dashboard speaks for the operator.
+        made = fornow.add(connection, project, arguments["text"], end, by_operator=False, scope=scope, actor=ACTOR)
+        return (f"Noted until {fornow.stamp(end)} ({fornow.left(end)}); it ends by itself. id {made['id']}"
+                + ("" if made["created"] else " (already there: its end is moved)"))
     limit = RULE_MAX if arguments.get("as") == "rule" else FACT_MAX
     if len(arguments["text"]) > limit:
         return (f"Too long: {len(arguments['text'])} characters, the limit is {limit}. Memory holds one statement per row: "
@@ -287,6 +301,16 @@ def run_stale(connection, project, arguments):
     return "\n".join(f"{r['type']}:{r['key']} {r['relation']} {r['component']} ({r['lifecycle']})" for r in rows) or "Nothing is tied to a deprecated or archived component."
 
 
+def run_for_now(connection, project, arguments):
+    rows = fornow.live(connection, project)
+    return "\n".join(fornow.line(f) for f in rows) or "Nothing temporary is in force."
+
+
+def run_end_for_now(connection, project, arguments):
+    fornow.end_now(connection, project, arguments["id"], may_end_operators=False, actor=ACTOR)
+    return "Ended."
+
+
 def run_backup_status(connection, project, arguments):
     h = backup.health()
     if not h["last_good"]:
@@ -388,7 +412,7 @@ def run_duplicates(connection, project, arguments):
     return "\n".join(f"{r['similarity']} older {r['older']}: {r['older_text'][:80]} | newer {r['newer']}: {r['newer_text'][:80]}" for r in rows) or "No near-duplicate facts."
 
 
-RUNNERS = {"viber_backup_status": run_backup_status, "viber_item": run_item, "viber_item_status": run_item_status, "viber_view": run_view, "viber_prompt": run_prompt, "viber_episodes_pending": run_episodes_pending, "viber_consolidated": run_consolidated,
+RUNNERS = {"viber_for_now": run_for_now, "viber_end_for_now": run_end_for_now, "viber_backup_status": run_backup_status, "viber_item": run_item, "viber_item_status": run_item_status, "viber_view": run_view, "viber_prompt": run_prompt, "viber_episodes_pending": run_episodes_pending, "viber_consolidated": run_consolidated,
            "viber_component_digest": run_component_digest, "viber_reflection": run_reflection, "viber_consolidate": run_consolidate, "viber_reflect": run_reflect, "viber_duplicates": run_duplicates, "viber_plan": run_plan, "viber_plan_add": run_plan_add, "viber_ref": run_ref, "viber_refs": run_refs,
            "viber_retire": run_retire, "viber_stale": run_stale, "viber_recall": run_recall, "viber_context": run_context, "viber_quick": run_quick, "viber_bug": run_bug,
            "viber_remember": run_remember, "viber_decide": run_decide, "viber_handoff": run_handoff, "viber_sessions": run_sessions,

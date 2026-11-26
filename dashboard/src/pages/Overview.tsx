@@ -7,6 +7,7 @@ import { EmptyState, LoadingState } from '../ui/EmptyState';
 import { Notice } from '../ui/Notice';
 import { PageHeader } from '../ui/PageHeader';
 import { StatusBadge } from '../ui/StatusBadge';
+import { ForNowCard } from './ForNowCard';
 
 interface ActiveSession { id: string; tag: string; goal: string | null; state: string; repo: string | null; last_seen: string; files: string[] }
 interface OverviewData {
@@ -46,6 +47,7 @@ export function Overview() {
       <PageHeader title={data.project.name} description="What your sessions are doing and what needs you." />
       {error && <Notice tone="warning">Showing the last data: {error}</Notice>}
       <StatTiles stats={tiles} label="Project figures" />
+      <ForNowCard />
       <div className="viber-grid">
         <Card title="Active sessions" description="Seen in the last 30 minutes" padded={false}>
           <DataTable<ActiveSession>

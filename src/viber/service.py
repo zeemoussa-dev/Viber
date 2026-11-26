@@ -241,12 +241,19 @@ def fuse(keyword: list[dict], meaning: list[dict], graph: list[dict] | None = No
 def recall(connection, project: dict, query: str, limit: int) -> dict:
     """Keyword search always; meaning search when the embedding service is up; graph hops when the question names a known
     entity. Fused by rank."""
-    from . import embeddings, graph
+    from . import embeddings, fornow, graph
+    fornow.expire_due(connection)
     keyword = connection.execute(RECALL_SQL, {"q": query, "p": project["id"], "n": limit * 3}).fetchall()
     meaning = embeddings.vector_hits(connection, project, query, limit * 3)
     hops = graph.hits_for_query(connection, project, query, limit * 2)
     results = fuse(keyword, meaning or [], hops)[:limit] if (meaning is not None or hops) else [
         {**row, "id": str(row["id"]), "via": "keyword"} for row in keyword[:limit]]
+    # A timed fact must never read as permanent: say when it ends, wherever it is recalled.
+    ids = [str(row["id"]) for row in results if row["kind"] == "fact"]
+    ends = {r["id"]: r["expires_at"] for r in connection.execute(
+        "SELECT id::text AS id, expires_at FROM fact WHERE id::text = ANY(%s) AND expires_at IS NOT NULL", (ids,)).fetchall()} if ids else {}
+    results = [{**row, "content": f"{row['content']} [temporary, until {fornow.stamp(ends[str(row['id'])])}]"} if str(row["id"]) in ends else row
+               for row in results]
     lines = [CONTEXT_PREAMBLE] + [
         f"[{row['kind']}:{row['id']}] {' '.join(row['content'].split())[:300]}" for row in results
     ]

@@ -22,7 +22,7 @@ from fastapi import Header, HTTPException, Request
 RANK = {"read": 0, "write": 1, "review": 2, "admin": 3}
 # MCP tools that only read. Every other tool records something.
 READ_TOOLS = {"viber_recall", "viber_context", "viber_sessions", "viber_get_adr", "viber_spec_get", "viber_graph", "viber_refs",
-              "viber_stale", "viber_duplicates", "viber_episodes_pending", "viber_component_digest", "viber_prompt", "viber_view", "viber_backup_status"}
+              "viber_stale", "viber_duplicates", "viber_episodes_pending", "viber_component_digest", "viber_prompt", "viber_view", "viber_backup_status", "viber_for_now"}
 REVIEW_TOOLS = {"viber_retire"}
 REVIEW_PATHS = re.compile(r"/(accept|reject|retire|supersede)(/|$)|/memory/rules/[^/]+/(accept|retire)$")
 ADMIN_PATHS = re.compile(r"^/v1/(tokens(/|$)|projects$|backups(/|$))")

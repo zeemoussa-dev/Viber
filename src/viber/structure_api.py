@@ -1,9 +1,10 @@
 """REST for decision numbers, specs and the memory graph. The MCP tools wrap the same functions."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
-from . import adr, graph, refs, service, specs, views
+from . import adr, fornow, graph, refs, service, specs, views
+from .security import RANK
 from .atoms import EPISODE_MAX, FACT_MAX, RELATION_MAX, RULE_MAX, SPEC_MAX, split_atoms
 from .db import transaction
 from .models import EpisodeIn, FactIn, RuleIn
@@ -209,6 +210,42 @@ def _register_view(view_name: str) -> None:
 
 for _name in views.RENDERERS:  # one explicit route each, so /views/changelog and /views/bugs keep their own handlers
     _register_view(_name)
+
+
+class ForNowIn(BaseModel):
+    text: str = Field(max_length=FACT_MAX)
+    lasts: str | None = None  # '90m', '12h', '2d', '1w'
+    until: str | None = None  # or an ISO time with its offset
+    scope: str = "project"
+
+
+@router.get("/memory/for-now")
+def for_now(project_key: str):
+    """What is true only for now, and what ended in the last two days."""
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return {"live": fornow.live(connection, project), "ended": fornow.ended(connection, project)}
+
+
+@router.post("/memory/for-now", status_code=201)
+def add_for_now(project_key: str, payload: ForNowIn, request: Request, actor: str = Depends(actor_name)):
+    end = fornow.parse_expiry(payload.lasts, payload.until)
+    if end is None:
+        raise HTTPException(422, "say how long it lasts (lasts='12h') or when it ends (until=...)")
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return fornow.add(connection, project, payload.text, end, _is_operator(request), payload.scope, actor)
+
+
+@router.post("/memory/for-now/{fact_id}/end")
+def end_for_now(project_key: str, fact_id: str, request: Request, actor: str = Depends(actor_name)):
+    with transaction() as connection:
+        return fornow.end_now(connection, service.project_row(connection, project_key), fact_id, _is_operator(request), actor)
+
+
+def _is_operator(request: Request) -> bool:
+    """Only the review and admin roles speak for the operator; a session's write token never does."""
+    return RANK[getattr(request.state, "role", "admin")] >= RANK["review"]
 
 
 @router.get("/adr/next")
