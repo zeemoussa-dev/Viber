@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { EmptyState } from '../ui/EmptyState';
-import { SearchField, Toolbar } from '../ui/Toolbar';
+import { Icon } from '../ui/Icon';
+import { SearchField } from '../ui/Toolbar';
+import { FilterPanel } from './ListFilters';
+import { SavedViews, type ViewChoice } from './SavedViews';
 
-/** One way to look at a long list: search, filter by any facet, group, fold, show a few at a time, select many.
- *  The choices are remembered in this browser, per list and project. Buttons only: no dropdowns. */
+/** One way to look at a long list: search, filter in a side panel, group, fold, show a few at a time, select many.
+ *  The last choices are remembered in this browser; named views are kept in Viber. Buttons only: no dropdowns. */
 export interface Facet<T> { id: string; label: string; of: (row: T) => string[] }
 
 interface Props<T> {
-  id: string; // remembers the choices
+  id: string; // "<project>.<list>": remembers the choices and holds the saved views
   rows: T[];
   rowKey: (row: T) => string;
   text: (row: T) => string; // what search looks in
@@ -20,7 +23,6 @@ interface Props<T> {
 
 interface Choice { group: string; filters: Record<string, string[]> }
 const PAGE = 15;
-const CHIPS = 12;
 
 function remembered(id: string, defaultGroup: string): Choice {
   try {
@@ -30,18 +32,17 @@ function remembered(id: string, defaultGroup: string): Choice {
   return { group: defaultGroup, filters: {} };
 }
 
-const chip = (on: boolean) => (on ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm');
-const row = { display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center', margin: '0.35rem 0' } as const;
-
 export function GroupedList<T>({ id, rows, rowKey, text, facets, defaultGroup, render, actions, empty }: Props<T>) {
   const [choice, setChoice] = useState<Choice>(() => remembered(id, defaultGroup));
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [limit, setLimit] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const project = id.slice(0, id.lastIndexOf('.'));
+  const list = id.slice(id.lastIndexOf('.') + 1);
 
-  useEffect(() => { setChoice(remembered(id, defaultGroup)); setSelected(new Set()); }, [id, defaultGroup]);
+  useEffect(() => { setChoice(remembered(id, defaultGroup)); setSelected(new Set()); setQuery(''); setOpen({}); }, [id, defaultGroup]);
   useEffect(() => { try { localStorage.setItem(`viber.list.${id}`, JSON.stringify(choice)); } catch { /* optional */ } }, [id, choice]);
 
   // A remembered filter for a value that no longer exists is ignored, so it can never hide everything unseen.
@@ -66,6 +67,18 @@ export function GroupedList<T>({ id, rows, rowKey, text, facets, defaultGroup, r
   const filtering = words.length > 0 || facets.some((facet) => active(facet.id).length > 0);
   const picked = shown.filter((r) => selected.has(rowKey(r))); // only what is still visible can be acted on
 
+  const applied = facets.flatMap((facet) => active(facet.id).map((value) => ({ facet, value })));
+  const sections = facets.map((facet) => ({ id: facet.id, label: facet.label, values: available[facet.id], chosen: active(facet.id) }))
+    .filter((section) => section.values.length > 1);
+  const openView = (view: ViewChoice) => {
+    setChoice({ group: view.group, filters: view.filters });
+    setQuery(view.query ?? '');
+    setOpen({});
+    setSelected(new Set());
+  };
+  const clearFilters = () => { setQuery(''); setChoice({ ...choice, filters: {} }); };
+  const allOpen = ordered.every(([name]) => open[name]);
+
   const toggleFilter = (facetId: string, value: string) => {
     const now = active(facetId);
     setChoice({ ...choice, filters: { ...choice.filters, [facetId]: now.includes(value) ? now.filter((v) => v !== value) : [...now, value] } });
@@ -77,67 +90,77 @@ export function GroupedList<T>({ id, rows, rowKey, text, facets, defaultGroup, r
   });
 
   return (
-    <div>
-      <Toolbar><SearchField value={query} onChange={setQuery} placeholder="Search these" /></Toolbar>
-      <div style={row} role="radiogroup" aria-label="Group by">
-        <span className="text-muted">Group by</span>
-        {[...facets.map((f) => ({ id: f.id, label: f.label })), { id: '', label: 'Nothing' }].map((option) => (
-          <button key={option.id} type="button" role="radio" aria-checked={choice.group === option.id} className={chip(choice.group === option.id)}
-            onClick={() => { setChoice({ ...choice, group: option.id }); setOpen({}); }}>{option.label}</button>
-        ))}
-      </div>
-      {facets.filter((facet) => (available[facet.id]?.length ?? 0) > 1).map((facet) => {
-        const values = available[facet.id];
-        const wanted = active(facet.id);
-        const visible = expanded[facet.id] ? values : values.filter(([name], index) => index < CHIPS || wanted.includes(name));
-        return (
-          <div key={facet.id} style={row} role="group" aria-label={`Filter by ${facet.label}`}>
-            <span className="text-muted">{facet.label}</span>
-            {visible.map(([name, count]) => (
-              <button key={name} type="button" aria-pressed={wanted.includes(name)} className={chip(wanted.includes(name))} onClick={() => toggleFilter(facet.id, name)}>{name} · {count}</button>
+    <div className="viber-list">
+      <SavedViews project={project} list={list} current={{ group: choice.group, filters: Object.fromEntries(facets.map((f) => [f.id, active(f.id)]).filter(([, v]) => v.length)), query }}
+        plain={{ group: defaultGroup, filters: {}, query: '' }} onOpen={openView} />
+      <div className="viber-list-bar">
+        <SearchField value={query} onChange={setQuery} placeholder="Search these" />
+        {sections.length > 0 && (
+          <button type="button" className="btn" aria-haspopup="dialog" onClick={() => setFiltersOpen(true)}>
+            <Icon name="tune" /> Filters{applied.length > 0 && <span className="viber-badge-count">{applied.length}</span>}
+          </button>
+        )}
+        <div className="viber-list-group">
+          <span className="text-muted">Group by</span>
+          <div className="segmented segmented-sm" role="radiogroup" aria-label="Group by">
+            {[...facets.map((f) => ({ id: f.id, label: f.label })), { id: '', label: 'None' }].map((option) => (
+              <button key={option.id} type="button" role="radio" aria-checked={choice.group === option.id} className={`segmented-option${choice.group === option.id ? ' is-chosen' : ''}`}
+                onClick={() => { setChoice({ ...choice, group: option.id }); setOpen({}); }}>{option.label}</button>
             ))}
-            {values.length > CHIPS && (
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setExpanded({ ...expanded, [facet.id]: !expanded[facet.id] })}>
-                {expanded[facet.id] ? 'Show fewer' : `${values.length - visible.length} more…`}
-              </button>
-            )}
           </div>
-        );
-      })}
-      <div style={row}>
-        <strong>{shown.length}</strong><span className="text-muted">of {rows.length} shown</span>
-        {filtering && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setQuery(''); setChoice({ ...choice, filters: {} }); }}>Clear filters</button>}
-        {groupFacet && ordered.length > 1 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(Object.fromEntries(ordered.map(([name]) => [name, !ordered.every(([n]) => open[n])])))}>{ordered.every(([n]) => open[n]) ? 'Fold all' : 'Open all'}</button>}
-        {actions && shown.length > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => selectMany(shown, picked.length !== shown.length)}>{picked.length === shown.length ? 'Select none' : `Select all ${shown.length} shown`}</button>}
+        </div>
+      </div>
+      {filtersOpen && <FilterPanel sections={sections} shown={shown.length} onToggle={toggleFilter} onClear={() => setChoice({ ...choice, filters: {} })} onClose={() => setFiltersOpen(false)} />}
+      {applied.length > 0 && (
+        <div className="viber-applied" aria-label="Filters in use">
+          {applied.map(({ facet, value }) => (
+            <button key={`${facet.id}:${value}`} type="button" className="viber-applied-chip" aria-label={`Remove filter ${facet.label}: ${value}`} onClick={() => toggleFilter(facet.id, value)}>
+              <span className="text-muted">{facet.label}:</span> {value} <Icon name="close" />
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="viber-list-summary">
+        <span><strong>{shown.length}</strong> <span className="text-muted">{filtering ? `of ${rows.length}` : 'in this list'}</span></span>
+        {filtering && <button type="button" className="btn-link" onClick={clearFilters}>Clear</button>}
+        <span className="viber-list-summary-end">
+          {groupFacet && ordered.length > 1 && <button type="button" className="btn-link" onClick={() => setOpen(Object.fromEntries(ordered.map(([name]) => [name, !allOpen])))}>{allOpen ? 'Fold all' : 'Open all'}</button>}
+          {actions && shown.length > 0 && <button type="button" className="btn-link" onClick={() => selectMany(shown, picked.length !== shown.length)}>{picked.length === shown.length ? 'Select none' : `Select all ${shown.length}`}</button>}
+        </span>
       </div>
       {actions && picked.length > 0 && (
-        <div style={{ ...row, position: 'sticky', top: 0, zIndex: 2, padding: '0.5rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '0.5rem' }}>
+        <div className="viber-selection">
           <strong>{picked.length} selected</strong>
           {actions(picked, () => setSelected(new Set()))}
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSelected(new Set())}>Clear</button>
         </div>
       )}
       {shown.length === 0 && <EmptyState icon="filter_alt_off" title={rows.length === 0 ? (empty ?? 'Nothing here') : 'Nothing matches the filters'} />}
-      {shown.length > 0 && ordered.map(([name, list]) => {
+      {shown.length > 0 && ordered.map(([name, items]) => {
         // With one group, or while searching, there is nothing to fold away.
-        const isOpen = !groupFacet || ordered.length === 1 || words.length > 0 || !!open[name];
+        const alwaysOpen = !groupFacet || ordered.length === 1 || words.length > 0;
+        const isOpen = alwaysOpen || !!open[name];
         const max = limit[name] ?? PAGE;
-        const all = list.every((r) => selected.has(rowKey(r)));
+        const all = items.every((r) => selected.has(rowKey(r)));
         return (
-          <section key={name || 'all'} style={{ marginTop: '0.5rem' }}>
+          <section key={name || 'all'}>
             {groupFacet && (
-              <div style={row}>
-                <button type="button" className="btn btn-ghost" aria-expanded={isOpen} onClick={() => setOpen({ ...open, [name]: !isOpen })}>{isOpen ? '▾' : '▸'} {name} · {list.length}</button>
-                {actions && <button type="button" className="btn btn-ghost btn-sm" onClick={() => selectMany(list, !all)}>{all ? 'Unselect group' : 'Select group'}</button>}
+              <div className="viber-group-head">
+                <button type="button" className="viber-row-button" aria-expanded={isOpen} disabled={alwaysOpen} onClick={() => setOpen({ ...open, [name]: !isOpen })}>
+                  <Icon name={isOpen ? 'expand_more' : 'chevron_right'} />
+                  <span className="viber-row-name">{name}</span>
+                  <span className="viber-row-count">{items.length}</span>
+                </button>
+                {actions && <button type="button" className="btn-link" onClick={() => selectMany(items, !all)}>{all ? 'Unselect' : 'Select'}</button>}
               </div>
             )}
-            {isOpen && list.slice(0, max).map((r) => (
-              <div key={rowKey(r)} className="viber-review-item" style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
-                {actions && <input type="checkbox" aria-label="Select" style={{ marginTop: '0.35rem' }} checked={selected.has(rowKey(r))} onChange={(event) => selectMany([r], event.target.checked)} />}
-                <div style={{ flex: 1, minWidth: 0 }}>{render(r)}</div>
+            {isOpen && items.slice(0, max).map((r) => (
+              <div key={rowKey(r)} className="viber-review-item viber-list-row">
+                {actions && <input type="checkbox" aria-label="Select" checked={selected.has(rowKey(r))} onChange={(event) => selectMany([r], event.target.checked)} />}
+                <div className="viber-list-row-body">{render(r)}</div>
               </div>
             ))}
-            {isOpen && list.length > max && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLimit({ ...limit, [name]: max + 50 })}>Show more ({list.length - max} left)</button>}
+            {isOpen && items.length > max && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setLimit({ ...limit, [name]: max + 50 })}>Show more ({items.length - max} left)</button>}
           </section>
         );
       })}

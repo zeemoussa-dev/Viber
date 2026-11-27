@@ -15,3 +15,70 @@
 .viber-review-item { padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
 .viber-review-item:last-child { border-bottom: 0; }
 .viber-review-item p { margin: var(--space-1) 0 var(--space-2); }
+
+/* A long list: saved views, one bar of controls, the filters in use, then the groups. */
+.viber-views { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-3); margin-bottom: var(--space-3); }
+.viber-views-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.viber-views-end { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.viber-views-name { display: flex; gap: var(--space-2); margin-top: var(--space-3); max-width: 32rem; }
+.viber-views-name input { flex: 1; min-width: 0; }
+.viber-view {
+  display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--control-height-sm); padding: 0 var(--space-3);
+  border: 1px solid var(--color-border); border-radius: var(--radius-pill); background: transparent;
+  color: var(--color-text-muted); font: inherit; font-size: var(--font-size-sm); font-weight: 600; cursor: pointer;
+}
+.viber-view:hover { color: var(--color-text); background: var(--color-surface-raised); }
+.viber-view.is-open { color: var(--color-text); border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
+.viber-view .icon { font-size: 16px; }
+.viber-list-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.viber-list-group { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); }
+.viber-badge-count {
+  display: inline-block; min-width: 1.4em; margin-left: var(--space-2); padding: 0 0.35em; border-radius: var(--radius-pill);
+  background: var(--color-accent); color: var(--color-surface); font-size: var(--font-size-xs); font-weight: 700; text-align: center;
+}
+.viber-applied { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.viber-applied-chip {
+  display: inline-flex; align-items: center; gap: var(--space-1); padding: 2px var(--space-2) 2px var(--space-3);
+  border: 1px solid var(--color-accent); border-radius: var(--radius-pill); background: transparent;
+  color: var(--color-text); font: inherit; font-size: var(--font-size-sm); cursor: pointer;
+}
+.viber-applied-chip .icon { font-size: 16px; }
+.viber-list-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: var(--space-4) 0 var(--space-2); font-size: var(--font-size-sm); }
+.viber-list-summary-end { margin-left: auto; display: flex; gap: var(--space-4); }
+.viber-selection {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); position: sticky; top: 0; z-index: 2;
+  padding: var(--space-2) var(--space-3); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+}
+
+/* A full-width line that opens something: a chevron, a name, and a count in its own right-hand column. */
+.viber-row-button {
+  display: flex; align-items: center; gap: var(--space-2); flex: 1; width: 100%; min-width: 0; padding: var(--space-2) var(--space-3);
+  border: 0; background: transparent; color: var(--color-text); font: inherit; font-weight: 600; text-align: left; cursor: pointer;
+}
+.viber-row-button:disabled { cursor: default; }
+.viber-row-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.viber-row-count { color: var(--color-text-muted); font-size: var(--font-size-sm); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.viber-group-head {
+  display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-2); padding-right: var(--space-3);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-raised);
+}
+.viber-list-row { display: flex; gap: var(--space-3); align-items: flex-start; padding-left: var(--space-3); padding-right: var(--space-3); }
+.viber-list-row > input { margin-top: 0.35rem; }
+.viber-list-row-body { flex: 1; min-width: 0; }
+
+/* The filter panel. */
+.viber-filter { border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-1); }
+.viber-filter-head { padding-left: 0; padding-right: 0; }
+.viber-filter-value { display: flex; align-items: center; gap: var(--space-3); min-height: 2.25rem; padding: 0 0 0 var(--space-5); cursor: pointer; }
+.viber-filter-value input { width: 18px; height: 18px; accent-color: var(--color-accent); flex-shrink: 0; }
+.viber-filter-find, .viber-views-name input {
+  box-sizing: border-box; min-height: var(--control-height); padding: 0 var(--space-3); font: inherit; font-size: var(--font-size-sm);
+  border: 1px solid var(--color-field-border); border-radius: var(--radius-pill); background: var(--color-field); color: var(--color-text);
+}
+.viber-filter-find { width: calc(100% - var(--space-5)); margin: 0 0 var(--space-2) var(--space-5); }
+.viber-filter-more { margin: var(--space-1) 0 var(--space-2) var(--space-5); }
+
+@media (max-width: 700px) {
+  .viber-list-group, .viber-views-end { margin-left: 0; }
+  .viber-list-bar .search-field { box-sizing: border-box; width: 100%; max-width: 100%; flex-basis: 100%; }
+}

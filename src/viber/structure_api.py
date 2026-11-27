@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from . import adr, fornow, graph, refs, service, specs, views
 from .security import RANK
 from .atoms import EPISODE_MAX, FACT_MAX, RELATION_MAX, RULE_MAX, SPEC_MAX, split_atoms
-from .db import record_audit, transaction
+from .db import record_audit, to_database_value, transaction
 from .models import EpisodeIn, FactIn, RuleIn
 from .security import actor_name, require_token
 
@@ -246,6 +246,55 @@ def end_for_now(project_key: str, fact_id: str, request: Request, actor: str = D
 def _is_operator(request: Request) -> bool:
     """Only the review and admin roles speak for the operator; a session's write token never does."""
     return RANK[getattr(request.state, "role", "admin")] >= RANK["review"]
+
+
+class ViewChoice(BaseModel):
+    group: str = Field("", max_length=40)
+    filters: dict[str, list[str]] = {}
+    query: str = Field("", max_length=200)
+
+
+class SavedViewIn(BaseModel):
+    list: str = Field(min_length=1, max_length=40)  # which list: review-rules, decisions, memory-rules, memory-facts
+    name: str = Field(min_length=1, max_length=60)
+    choice: ViewChoice
+
+
+@router.get("/saved-views")
+def saved_views(project_key: str, list: str | None = None):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        return connection.execute(
+            "SELECT id::text AS id, list, name, choice FROM saved_view WHERE project_id = %s AND (%s::text IS NULL OR list = %s) "
+            "ORDER BY lower(name)", (project["id"], list, list)).fetchall()
+
+
+@router.put("/saved-views")
+def save_view(project_key: str, payload: SavedViewIn, actor: str = Depends(actor_name)):
+    """Save a view under a name. Saving the same name again (any capitals) replaces it."""
+    name = " ".join(payload.name.split())
+    if not name:
+        raise HTTPException(422, "give the view a name")
+    if sum(len(values) for values in payload.choice.filters.values()) > 200:
+        raise HTTPException(422, "that is too many filters for one view")
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        row = connection.execute(
+            "INSERT INTO saved_view (project_id, list, name, choice, created_by) VALUES (%s,%s,%s,%s,%s) "
+            "ON CONFLICT (project_id, list, lower(name)) DO UPDATE SET name = EXCLUDED.name, choice = EXCLUDED.choice, updated_at = now() "
+            "RETURNING id::text AS id, list, name, choice, (xmax = 0) AS created",
+            (project["id"], payload.list, name, to_database_value(payload.choice.model_dump()), actor)).fetchone()
+        return row
+
+
+@router.delete("/saved-views/{view_id}")
+def delete_view(project_key: str, view_id: str):
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        row = connection.execute("DELETE FROM saved_view WHERE project_id = %s AND id::text = %s RETURNING name", (project["id"], view_id)).fetchone()
+        if not row:
+            raise HTTPException(404, "no such saved view")
+        return {"deleted": row["name"]}
 
 
 class BulkRulesIn(BaseModel):
