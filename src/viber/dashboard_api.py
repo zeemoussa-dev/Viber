@@ -45,7 +45,7 @@ def review_counts(connection, pid) -> dict:
     return connection.execute(
         "SELECT (SELECT count(*) FROM rule WHERE project_id=%s AND status='proposed') AS rules, "
         "(SELECT count(*) FROM decision WHERE project_id=%s AND status='Proposed') AS decisions, "
-        "(SELECT count(*) FROM item WHERE project_id=%s AND gate='flagged') AS items", (pid, pid, pid)).fetchone()
+        "(SELECT count(*) FROM item WHERE project_id=%s AND gate='flagged' AND status <> ALL(%s)) AS items", (pid, pid, pid, CLOSED_ITEM_STATUSES)).fetchone()
 
 
 @router.get("/review")
@@ -56,7 +56,7 @@ def review_queue(project_key: str):
         return {
             "counts": review_counts(connection, pid),
             "rules": connection.execute(
-                "SELECT id::text, category, scope, components, text, proposed_by, created_at FROM rule WHERE project_id=%s AND status='proposed' "
+                "SELECT id::text, category, scope, components, text, source, proposed_by, created_at FROM rule WHERE project_id=%s AND status='proposed' "
                 "ORDER BY created_at DESC", (pid,)).fetchall(),
             "decisions": connection.execute(
                 "SELECT d.key, d.title, d.decided_on, "
@@ -67,8 +67,9 @@ def review_queue(project_key: str):
                                        ("alternatives", "alternative"), ("consequences", "consequence")))
                 + " FROM decision d WHERE d.project_id=%s AND d.status='Proposed' ORDER BY d.created_at DESC", (pid,)).fetchall(),
             "items": connection.execute(
-                "SELECT key, kind, title, gate_reason, status FROM item WHERE project_id=%s AND gate='flagged' ORDER BY created_at DESC",
-                (pid,)).fetchall(),
+                # Finished work needs nobody: its old flag stays on the record but leaves the queue.
+                "SELECT key, kind, title, gate_reason, status FROM item WHERE project_id=%s AND gate='flagged' AND status <> ALL(%s) ORDER BY created_at DESC",
+                (pid, CLOSED_ITEM_STATUSES)).fetchall(),
         }
 
 
@@ -126,11 +127,11 @@ def component_summary(project_key: str):
 
 
 @router.get("/memory/facts")
-def list_facts(project_key: str, limit: int = Query(100, le=500)):
+def list_facts(project_key: str, limit: int = Query(100, le=5000)):
     with transaction() as connection:
         project = service.project_row(connection, project_key)
         return connection.execute(
-            "SELECT id::text, scope, subject, text, trust, valid_from FROM fact WHERE project_id=%s AND valid_to IS NULL "
+            "SELECT id::text, scope, subject, text, trust, source, valid_from FROM fact WHERE project_id=%s AND valid_to IS NULL "
             "ORDER BY created_at DESC LIMIT %s", (project["id"], limit)).fetchall()
 
 

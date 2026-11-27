@@ -6,6 +6,7 @@ import { Card } from './ui/Card';
 import { EmptyState } from './ui/EmptyState';
 import { Notice } from './ui/Notice';
 import { PageHeader } from './ui/PageHeader';
+import { DecisionsPage } from './pages/DecisionsPage';
 import { MapPage } from './pages/MapPage';
 import { MemoryPage } from './pages/MemoryPage';
 import { Overview } from './pages/Overview';
@@ -67,6 +68,7 @@ function Shell() {
             <NavItem to="/review" icon="fact_check" label="Review queue" />
           </NavSection>
           <NavSection title="Project">
+            <NavItem to="/decisions" icon="gavel" label="Decisions" />
             <NavItem to="/work" icon="task_alt" label="Work" />
             <NavItem to="/map" icon="hub" label="Map" />
             <NavItem to="/memory" icon="psychology" label="Memory" />
@@ -91,6 +93,7 @@ function Shell() {
               <Route path="/" element={<Overview />} />
               <Route path="/sessions" element={<SessionsPage />} />
               <Route path="/review" element={<ReviewPage />} />
+              <Route path="/decisions" element={<DecisionsPage />} />
               <Route path="/work" element={<WorkPage />} />
               <Route path="/map" element={<MapPage />} />
               <Route path="/memory" element={<MemoryPage />} />

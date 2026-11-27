@@ -248,6 +248,35 @@ def _is_operator(request: Request) -> bool:
     return RANK[getattr(request.state, "role", "admin")] >= RANK["review"]
 
 
+class BulkRulesIn(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=1000)
+
+
+def _bulk_rules(project_key: str, ids: list[str], status: str, from_statuses: tuple[str, ...], actor: str) -> dict:
+    with transaction() as connection:
+        project = service.project_row(connection, project_key)
+        rows = connection.execute(
+            "UPDATE rule SET status = %s, accepted_by = CASE WHEN %s = 'accepted' THEN %s ELSE accepted_by END "
+            "WHERE project_id = %s AND id::text = ANY(%s) AND status = ANY(%s) RETURNING id::text AS id",
+            (status, status, actor, project["id"], ids, list(from_statuses))).fetchall()
+        for row in rows:  # one audit line per rule, as if each had been done by hand
+            record_audit(connection, actor, "accept" if status == "accepted" else "retire", "rule", row["id"], project["id"], {"bulk": len(rows)})
+    return {"done": len(rows), "unchanged": len(set(ids)) - len(rows)}
+
+
+# These must be registered before /memory/rules/{rule_id}/..., so that "bulk" is not read as a rule id.
+@router.post("/memory/rules/bulk/accept")
+def bulk_accept_rules(project_key: str, payload: BulkRulesIn, actor: str = Depends(actor_name)):
+    """Accept many proposed rules at once (review role). Rules that are not proposed are left as they are."""
+    return _bulk_rules(project_key, payload.ids, "accepted", ("proposed",), actor)
+
+
+@router.post("/memory/rules/bulk/retire")
+def bulk_retire_rules(project_key: str, payload: BulkRulesIn, actor: str = Depends(actor_name)):
+    """Dismiss many proposed rules at once (review role). Accepted rules are not touched by a bulk dismiss."""
+    return _bulk_rules(project_key, payload.ids, "retired", ("proposed",), actor)
+
+
 class ReachIn(BaseModel):
     components: list[str] = Field(max_length=100)  # empty = the whole project
 

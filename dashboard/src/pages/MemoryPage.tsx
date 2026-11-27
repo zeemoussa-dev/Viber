@@ -2,20 +2,32 @@ import { useEffect, useState } from 'react';
 import { projectPath, useProject } from '../project';
 import { apiFetch, useApi } from '../api';
 import { Card } from '../ui/Card';
-import { DataTable } from '../ui/DataTable';
 import { EmptyState, LoadingState } from '../ui/EmptyState';
 import { Notice } from '../ui/Notice';
 import { PageHeader } from '../ui/PageHeader';
 import { StatusBadge, type StatusTone } from '../ui/StatusBadge';
 import { Tabs } from '../ui/Tabs';
 import { SearchField, Toolbar } from '../ui/Toolbar';
+import { GroupedList, sourceName, type Facet } from './GroupedList';
 import { RuleReach } from './RuleReach';
 
 interface Rule { id: string; category: string; scope: string; components: string[]; text: string; status: string; source: string | null }
-interface Fact { id: string; scope: string; subject: string | null; text: string; trust: string }
+interface Fact { id: string; scope: string; subject: string | null; text: string; trust: string; source: string | null }
 interface Recalled { items: { kind: string; id: string; content: string; rank: number }[]; context: string }
 
 const RULE_TONE: Record<string, StatusTone> = { accepted: 'success', proposed: 'warning', retired: 'neutral' };
+
+const RULE_FACETS: Facet<Rule>[] = [
+  { id: 'status', label: 'Status', of: (r) => [r.status] },
+  { id: 'component', label: 'Component', of: (r) => (r.components.length ? r.components : ['Whole project']) },
+  { id: 'source', label: 'Came from', of: (r) => [sourceName(r.source)] },
+  { id: 'kind', label: 'Kind', of: (r) => [r.category] },
+];
+const FACT_FACETS: Facet<Fact>[] = [
+  { id: 'source', label: 'Came from', of: (f) => [sourceName(f.source)] },
+  { id: 'component', label: 'Component', of: (f) => [f.scope === 'project' ? 'Whole project' : f.scope.replace('component:', '')] },
+  { id: 'trust', label: 'Trust', of: (f) => [f.trust] },
+];
 
 function Recall({ project }: { project: string }) {
   const [query, setQuery] = useState('');
@@ -50,7 +62,7 @@ function Recall({ project }: { project: string }) {
 export function MemoryPage() {
   const { project } = useProject();
   const rules = useApi<Rule[]>(projectPath(project, '/memory/rules'));
-  const facts = useApi<Fact[]>(projectPath(project, '/memory/facts'));
+  const facts = useApi<Fact[]>(projectPath(project, '/memory/facts?limit=5000'));
   const [tab, setTab] = useState('rules');
   const loading = (rules.loading && !rules.data) || (facts.loading && !facts.data);
 
@@ -65,25 +77,28 @@ export function MemoryPage() {
         { value: 'facts', label: 'Facts', count: facts.data?.length },
       ]} />
       {loading ? <LoadingState shape="rows" rows={5} /> : (
-        <Card padded={false}>
+        <Card>
           {tab === 'rules' && (
-            <DataTable<Rule> label="Rules" rows={rules.data ?? []} rowKey={(row) => row.id}
-              empty={<EmptyState icon="gavel" title="No rules yet">Agents propose them with viber_remember; you accept them in the review queue.</EmptyState>}
-              columns={[
-                { key: 'text', header: 'Rule', render: (row) => row.text },
-                { key: 'category', header: 'Kind', hideBelow: 'sm', render: (row) => row.category },
-                { key: 'scope', header: 'Applies to', hideBelow: 'md', render: (row) => <RuleReach ruleId={row.id} components={row.components} locked={row.status === 'retired'} onSaved={rules.reload} /> },
-                { key: 'status', header: 'Status', align: 'end', render: (row) => <StatusBadge tone={RULE_TONE[row.status] ?? 'neutral'}>{row.status}</StatusBadge> },
-              ]} />
+            <GroupedList<Rule> id={`${project}.memory-rules`} rows={rules.data ?? []} rowKey={(row) => row.id} text={(row) => `${row.text} ${row.components.join(' ')}`}
+              facets={RULE_FACETS} defaultGroup="status" empty="No rules yet"
+              render={(row) => (
+                <>
+                  <StatusBadge tone={RULE_TONE[row.status] ?? 'neutral'}>{row.status}</StatusBadge>{' '}
+                  <span className="text-muted">{row.category} · {sourceName(row.source)} · applies to </span>
+                  <RuleReach ruleId={row.id} components={row.components} locked={row.status === 'retired'} onSaved={rules.reload} />
+                  <p>{row.text}</p>
+                </>
+              )} />
           )}
           {tab === 'facts' && (
-            <DataTable<Fact> label="Facts" rows={facts.data ?? []} rowKey={(row) => row.id}
-              empty={<EmptyState icon="psychology" title="No facts yet">Sessions store durable facts with viber_remember.</EmptyState>}
-              columns={[
-                { key: 'text', header: 'Fact', render: (row) => row.text },
-                { key: 'scope', header: 'Scope', hideBelow: 'md', render: (row) => row.scope },
-                { key: 'trust', header: 'Trust', align: 'end', render: (row) => <StatusBadge tone="neutral">{row.trust}</StatusBadge> },
-              ]} />
+            <GroupedList<Fact> id={`${project}.memory-facts`} rows={facts.data ?? []} rowKey={(row) => row.id} text={(row) => `${row.text} ${row.subject ?? ''}`}
+              facets={FACT_FACETS} defaultGroup="source" empty="No facts yet"
+              render={(row) => (
+                <>
+                  <span className="text-muted">{row.scope === 'project' ? 'Whole project' : row.scope.replace('component:', '')} · {sourceName(row.source)}{row.subject ? ` · ${row.subject}` : ''}</span>
+                  <p>{row.text}</p>
+                </>
+              )} />
           )}
         </Card>
       )}
